@@ -1,0 +1,4 @@
+# Keep launcher line endings correct regardless of the cloner's git settings.
+*.sh   text eol=lf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf

@@ -1,0 +1,83 @@
+/* Slim always-on reminder ribbon, sitting just under the header. Quiet by default so it never
+   competes with the workspace, with a soft accent wash keyed to the quote's theme. */
+.dq {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 18px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  min-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dq-mark {
+  color: var(--acc);
+  font-size: 12px;
+  flex: 0 0 auto;
+  opacity: .9;
+}
+
+.dq-text {
+  font-weight: 500;
+  letter-spacing: .1px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dq-by {
+  color: var(--mut);
+  font-size: 11.5px;
+  font-style: italic;
+  flex: 0 0 auto;
+  animation: dq-fade .5s ease both;
+}
+
+/* Theme tag pinned to the right end of the ribbon, coloured per theme. */
+.dq-tag {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .9px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  animation: dq-fade .5s ease both;
+}
+.dq-boldness .dq-tag { color: #e0603a; background: rgba(224, 96, 58, .13); }
+.dq-choices  .dq-tag { color: #d9a520; background: rgba(217, 165, 32, .13); }
+.dq-research .dq-tag { color: var(--acc); background: var(--acc-weak); }
+.dq-teamwork .dq-tag { color: #2f9e6b; background: rgba(47, 158, 107, .13); }
+.dq-together .dq-tag { color: #7a5cff; background: rgba(122, 92, 255, .13); }
+
+/* Blinking type caret, only present while the once-a-day reveal is typing. */
+.dq-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--acc);
+  animation: dq-blink 1s step-end infinite;
+}
+
+@keyframes dq-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes dq-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Theme washes — a faint left-edge accent so different themes feel distinct without shouting. */
+.dq-boldness { box-shadow: inset 3px 0 0 #e0603a; }
+.dq-choices  { box-shadow: inset 3px 0 0 #d9a520; }
+.dq-research { box-shadow: inset 3px 0 0 var(--acc); }
+.dq-teamwork { box-shadow: inset 3px 0 0 #2f9e6b; }
+.dq-together { box-shadow: inset 3px 0 0 #7a5cff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dq-caret, .dq-by { animation: none; }
+}

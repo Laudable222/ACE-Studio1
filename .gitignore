@@ -1,0 +1,42 @@
+# --- Personal / account state (never commit — see studio/reset_for_sharing.py) ---
+session.pkl
+ace.log
+studio/ace_studio.db
+studio/ace_studio.db-wal
+studio/ace_studio.db-shm
+studio/wqb_options.json
+studio/templates.json
+
+# Notebook / run outputs
+alphas_*.py
+simulation_results/
+alphas_pnl/
+yearly_stats/
+
+# Secrets (these live in ~/secrets, but never commit any secrets/ folder)
+secrets/
+
+# Secrets and remote-update credentials are never part of an ACE build.
+update_token.txt
+update_url.txt
+
+# Support → GitHub Issues token (Issues:write on the project repo only). Ships in the
+# shared zip so recipients can file bugs, but is NEVER committed. Rotate if leaked.
+support_token.txt
+studio/support_token.txt
+
+# Editor / tooling config (not part of the app)
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Compiled/signed release artifacts from package.py (built on demand, never committed).
+# The Ed25519 signing key lives in ~/.ace_studio_keys (outside the repo) and is never here.
+/release/
+/ace-studio/
+/ACE-Studio-*.zip

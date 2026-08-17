@@ -1,0 +1,19 @@
+/* Global background-job tray — bottom-left so it never collides with toasts (bottom-right). */
+.jobtray {
+  position: fixed; left: 16px; bottom: 16px; z-index: 900;
+  width: 240px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; font-size: 12px;
+}
+.jobtray-head {
+  display: flex; align-items: center; gap: 7px; padding: 8px 11px; cursor: pointer;
+  background: var(--bg-2); border-bottom: 1px solid var(--line); color: var(--fg);
+}
+.jobtray-head b { color: var(--acc); }
+.jobtray-caret { margin-left: auto; color: var(--mut); }
+.jobtray-list { max-height: 240px; overflow-y: auto; }
+.jobtray-item { padding: 8px 11px; border-bottom: 1px solid var(--line); }
+.jobtray-item:last-child { border-bottom: none; }
+.jobtray-kind { font-weight: 600; }
+.jobtray-msg { color: var(--mut); font-size: 11px; margin-top: 2px; word-break: break-word; }
+.jobtray-bar { height: 4px; border-radius: 3px; background: var(--faint); margin-top: 5px; overflow: hidden; }
+.jobtray-bar > div { height: 100%; background: var(--acc); transition: width var(--tap); }

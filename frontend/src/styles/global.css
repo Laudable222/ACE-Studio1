@@ -1,0 +1,142 @@
+/* Global reset + the no-scroll app shell.
+   The whole app is locked to the viewport (html/body never scroll); only designated
+   panels scroll internally. The --ui-scale variable shrinks everything on large / zoomed
+   screens so nothing is ever clipped. */
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;                 /* the page itself never scrolls */
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: radial-gradient(1200px 600px at 20% -10%, #1a2130 0%, var(--bg) 55%);
+  color: var(--fg);
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Auto-scale: the whole UI zooms via a CSS variable so a compact layout stays compact
+   (and scroll-free) at 125%+ OS zoom or on very large displays. */
+#root { zoom: var(--ui-scale); }
+
+a { color: var(--acc); text-decoration: none; }
+a:hover { color: var(--acc-2); }
+
+code, pre {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+button { font-family: inherit; }
+
+::selection { background: var(--acc); color: var(--acc-fg); }
+
+/* Thin, fully transparent-track scrollbars. The thumb is a faint translucent overlay that
+   only firms up on hover, so scrolling never adds a solid gutter to a panel. */
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-corner { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); border-radius: 20px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .30); }
+
+/* ── shared primitives ─────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-height: 0;                    /* lets it shrink inside a grid without overflowing */
+  min-width: 0;                     /* …and stops wide content forcing horizontal overflow */
+  display: flex;
+  flex-direction: column;
+  overflow: auto;                   /* a panel taller than its slot scrolls INSIDE itself */
+}
+.panel-scroll { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* Long expressions / ids wrap instead of forcing a horizontal scrollbar inside a panel. */
+.panel code, td code, .panel-scroll code { overflow-wrap: anywhere; word-break: break-word; }
+td { word-break: break-word; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--acc); color: var(--acc-fg);
+  border: none; border-radius: var(--radius-sm);
+  padding: 8px 14px; font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: transform var(--tap), filter var(--tap);
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(1px); }
+.btn.ghost { background: var(--faint); color: var(--fg); border: 1px solid var(--line); }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--faint); border: 1px solid var(--line);
+  border-radius: 20px; padding: 3px 10px; font-size: 12px; color: var(--mut);
+}
+.chip b { color: var(--fg); }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px;
+}
+.badge.ok  { background: var(--ok-weak);  color: var(--ok); }
+.badge.bad { background: var(--bad-weak); color: var(--bad); }
+
+.mut { color: var(--mut); }
+
+/* form primitives */
+label.fld { display: block; }
+label.fld > span { display: block; font-size: 11px; color: var(--mut); margin-bottom: 3px; }
+input, select, textarea {
+  width: 100%; background: var(--surface-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 7px 9px; font: inherit; font-size: 13px; outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--acc); box-shadow: var(--ring); }
+input[type="checkbox"] { width: auto; accent-color: var(--acc); }
+select { cursor: pointer; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  background: var(--faint); border: 1px solid var(--line); color: var(--mut);
+  border-radius: 20px; padding: 3px 10px; font-size: 12px; transition: all var(--tap);
+}
+.pill:hover { color: var(--fg); }
+.pill.on { background: var(--acc); color: var(--acc-fg); border-color: transparent; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); }
+th { color: var(--mut); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+     position: sticky; top: 0; background: var(--surface); z-index: 1; }
+tbody tr:hover { background: var(--faint); }
+
+.empty { color: var(--mut); font-size: 13px; padding: 18px; text-align: center;
+         background: var(--surface-2); border-radius: 12px; }
+
+/* toasts */
+.toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+.toast {
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--acc);
+  border-radius: 10px; padding: 10px 14px; font-size: 13px; max-width: 360px;
+  box-shadow: var(--shadow); animation: toastin .18s ease;
+}
+.toast.ok { border-left-color: var(--ok); }
+.toast.warn { border-left-color: var(--warn); }
+.toast.err { border-left-color: var(--bad); }
+@keyframes toastin { from { transform: translateY(6px); opacity: 0; } }
+.spin {
+  display: inline-block; width: 13px; height: 13px;
+  border: 2px solid var(--mut); border-top-color: var(--acc);
+  border-radius: 50%; animation: sp .6s linear infinite; vertical-align: -2px;
+}
+/* On a solid orange button the grey spinner vanished — use high-contrast dark ring. */
+.btn .spin { border-color: rgba(0,0,0,.35); border-top-color: #fff; }
+.btn.ghost .spin { border-color: var(--mut); border-top-color: var(--acc); }
+@keyframes sp { to { transform: rotate(360deg); } }

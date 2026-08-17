@@ -1,0 +1,137 @@
+/* The fixed app frame: sidebar | (header / content). Nothing here scrolls except the
+   content area's inner panels. */
+
+.shell {
+  height: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;   /* the sidebar's own width drives the column (collapsible) */
+}
+
+/* A flex column (not a fixed 3-row grid): header + optional login banner + content + optional
+   footer. Flex sizes each auto row naturally, so the content region is ALWAYS the single
+   flex:1 child that gets bounded — no track can grow to content height and push panels off
+   screen. This is the fix for "panels don't scroll / buttons fall below the fold". */
+.shell-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-content {
+  flex: 1;                        /* take exactly the space left after header/banner/footer */
+  min-height: 0;                  /* …and be allowed to shrink so children can scroll inside */
+  padding: 14px 16px;
+  overflow: hidden;               /* the page never scrolls; panels scroll inside */
+  display: flex;
+  flex-direction: column;
+}
+/* The single screen mounted here fills the content box and is bounded to it, so its own
+   .panel-scroll / .panel children are the only things that scroll. min-width:0 stops wide
+   content (long expressions, tables) from forcing horizontal overflow. */
+.shell-content > * { flex: 1; min-height: 0; min-width: 0; }
+
+/* thin footer strip */
+.shell-foot {
+  flex: none; height: 22px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; font-size: 10.5px; color: var(--mut);
+  background: var(--bg-2);
+}
+.shell-foot .sep { opacity: .4; }
+.shell-foot .right { margin-left: auto; }
+
+/* ── sidebar ─────────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg-2);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  min-height: 0; padding: 14px 12px;
+  transition: width var(--tap);
+}
+.sidebar.collapsed { width: 60px; padding: 10px 8px; }
+
+.sidebar-top { display: flex; align-items: center; gap: 8px; }
+.sidebar.collapsed .sidebar-top { justify-content: center; margin-bottom: 6px; }
+.sidebar-toggle {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px; cursor: pointer;
+  background: var(--faint); border: 1px solid var(--line); color: var(--mut);
+  transition: color var(--tap), border-color var(--tap);
+}
+.sidebar-toggle:hover { color: var(--fg); border-color: var(--acc); }
+.sidebar.collapsed .sidebar-toggle { margin-left: 0; }
+
+/* icon-only nav when collapsed */
+.sidebar.collapsed .nav-link { justify-content: center; padding: 9px 0; }
+.sidebar.collapsed .sidebar-nav { overflow: visible; }
+.sidebar-foot-mini { display: flex; justify-content: center; padding-top: 8px; }
+
+.sidebar-brand {
+  display: flex; align-items: center; gap: 9px; flex: 1;
+  padding: 4px 6px 14px; font-weight: 700; font-size: 16px;
+}
+.sidebar-brand .mark {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--acc), var(--acc-2));
+  display: grid; place-items: center; color: var(--acc-fg); font-size: 15px;
+}
+.sidebar-brand .sub { color: var(--acc); }
+.sidebar-nav { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.nav-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--mut); margin: 12px 8px 4px;
+}
+.nav-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 9px; color: var(--mut);
+  cursor: pointer; transition: background var(--tap), color var(--tap); font-size: 13px;
+}
+.nav-link:hover { background: var(--faint); color: var(--fg); }
+.nav-link.active { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+.nav-link.soon { opacity: .55; }
+.nav-link .soon-dot {
+  margin-left: auto; font-size: 9px; color: var(--acc);
+  border: 1px solid var(--acc-weak); border-radius: 10px; padding: 0 5px;
+}
+.sidebar-foot {
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); padding: 9px 11px; font-size: 12px; margin-top: 8px;
+}
+.sidebar-foot .lbl { color: var(--mut); font-size: 11px; display: flex; align-items: center; gap: 6px; }
+.sidebar-foot b { display: block; margin-top: 2px; font-size: 14px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mut); }
+.dot.ok { background: var(--ok); }
+
+/* ── header ──────────────────────────────────────────────────────────────────── */
+.header {
+  flex: none; height: var(--header-h);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px; padding: 0 18px;
+  background: linear-gradient(180deg, var(--bg-2), transparent);
+}
+.header .title { font-weight: 600; font-size: 14px; }
+.header .spacer { flex: 1; }
+.ctx-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--faint); border: 1px solid var(--line);
+  border-radius: 20px; padding: 4px 11px; font-size: 12px; color: var(--mut);
+}
+.ctx-chip b { color: var(--fg); }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 30px; background: var(--faint); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--mut); cursor: pointer; transition: color var(--tap), border-color var(--tap);
+}
+.icon-btn:hover { color: var(--fg); border-color: var(--acc); }
+.cmdk {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--faint); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px; font-size: 12px; color: var(--mut); cursor: pointer;
+}
+.cmdk kbd {
+  font: inherit; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 5px; padding: 0 5px; font-size: 11px;
+}

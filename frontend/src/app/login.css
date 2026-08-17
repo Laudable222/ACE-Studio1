@@ -1,0 +1,50 @@
+/* Global login prompt: a slim banner shown on every screen when no BRAIN session exists,
+   plus a modal dialog for the two-step biometrics login. */
+
+.login-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--warn-weak, #4a3a12);
+  border-bottom: 1px solid var(--warn, #b8860b);
+  color: var(--text, #eee);
+  font-size: 13px;
+}
+.login-banner b { color: var(--warn, #d9a520); }
+.login-banner .grow { flex: 1; }
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.login-box {
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--panel, #1b1e24);
+  border: 1px solid var(--line, #333);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  padding: 20px;
+}
+.login-box h3 { margin: 0 0 4px; font-size: 16px; }
+.login-box .sub { color: var(--mut, #9aa0aa); font-size: 12.5px; line-height: 1.6; margin-bottom: 14px; }
+.login-box .fld { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.login-box .fld > span { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--mut, #9aa0aa); }
+.login-box .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.login-box .msg {
+  font-size: 12.5px; line-height: 1.6; margin-top: 12px; padding: 10px 12px;
+  background: var(--faint, #23262d); border-radius: 8px; word-break: break-word;
+}
+.login-box .msg a { color: var(--acc, #6ea8fe); }
+.login-box .steps { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.login-box .close-x { float: right; cursor: pointer; color: var(--mut, #9aa0aa); font-size: 18px; line-height: 1; }

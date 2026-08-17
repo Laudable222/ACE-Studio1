@@ -1,0 +1,43 @@
+/* Template Studio: fixed panel headers + a terminal-style operator autocomplete. */
+
+/* A panel whose header stays put while only the body scrolls. */
+.tpl-panel { padding: 0; overflow: hidden; }
+.tpl-panel > .dx-head {
+  flex: none;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  margin: 0;
+}
+.tpl-body { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 12px 14px; }
+
+/* For a panel whose body is a table, drop the top padding so the sticky column header sits
+   flush under the panel header (no gap for rows to scroll through). */
+.tpl-body.flush { padding: 0; }
+.tpl-body.flush > .empty { margin: 12px 14px; }
+.tpl-body.flush table th { top: 0; }
+.tpl-body.flush table th:first-child, .tpl-body.flush table td:first-child { padding-left: 14px; }
+.tpl-body.flush table th:last-child, .tpl-body.flush table td:last-child { padding-right: 14px; }
+
+/* editor + autocomplete */
+.tpl-editor { position: relative; }
+.tpl-editor textarea {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px; line-height: 1.6; min-height: 96px; resize: vertical;
+}
+.tpl-ac {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 30;
+  margin-top: 4px; max-height: 220px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.tpl-ac-item {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 6px 10px; cursor: pointer; font-size: 12.5px;
+}
+.tpl-ac-item.on { background: var(--acc); color: var(--acc-fg); }
+.tpl-ac-item .sig { color: var(--mut); font-size: 11px; }
+.tpl-ac-item.on .sig { color: var(--acc-fg); opacity: .8; }
+.tpl-ac-hint { padding: 5px 10px; font-size: 10.5px; color: var(--mut); border-top: 1px solid var(--line); }
+
+.tpl-tag { font-size: 11px; color: var(--mut); }

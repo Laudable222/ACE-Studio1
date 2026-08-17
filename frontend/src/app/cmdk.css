@@ -1,0 +1,24 @@
+.cmdk-overlay {
+  position: fixed; inset: 0; background: #0009; z-index: 500;
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh;
+  animation: fade .12s ease;
+}
+.cmdk-box {
+  width: min(560px, 90vw); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: 0 20px 60px #000a; overflow: hidden;
+}
+.cmdk-input {
+  width: 100%; border: none; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: transparent; padding: 14px 16px; font-size: 15px;
+}
+.cmdk-input:focus { box-shadow: none; }
+.cmdk-list { max-height: 46vh; overflow: auto; padding: 6px; }
+.cmdk-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 11px; border-radius: 9px; cursor: pointer; font-size: 13.5px;
+}
+.cmdk-item.active { background: var(--acc-weak); }
+.cmdk-item .cmdk-group { font-size: 11px; color: var(--mut); }
+.cmdk-empty { padding: 18px; text-align: center; color: var(--mut); font-size: 13px; }
+.cmdk-foot { padding: 8px 14px; border-top: 1px solid var(--line); font-size: 11px; color: var(--mut); }
+@keyframes fade { from { opacity: 0 } }

@@ -1,0 +1,58 @@
+/* ACE Studio design tokens — the dark + orange identity, refined.
+   Light/dark are both defined; the app defaults to dark (its native look). */
+
+:root {
+  /* brand */
+  --acc:        #f0842f;   /* primary orange */
+  --acc-2:      #ffa24d;
+  --acc-weak:   #f0842f22;
+  --acc-fg:     #1a1206;   /* text on an orange fill */
+
+  /* dark surfaces (default) */
+  --bg:         #0e1117;
+  --bg-2:       #0b0e14;
+  --surface:    #161b24;
+  --surface-2:  #1b212c;
+  --faint:      #ffffff0a;
+  --line:       #ffffff14;
+
+  /* text */
+  --fg:         #e7ecf3;
+  --mut:        #8b97a8;
+
+  /* semantic */
+  --ok:         #3ba55d;
+  --warn:       #e0a23a;
+  --bad:        #cf4b4b;
+  --ok-weak:    #3ba55d1a;
+  --bad-weak:   #cf4b4b1a;
+
+  /* shape & motion */
+  --radius:     12px;
+  --radius-sm:  8px;
+  --shadow:     0 6px 20px #00000040;
+  --ring:       0 0 0 2px var(--acc-weak);
+  --tap:        160ms cubic-bezier(.2,.7,.3,1);
+
+  /* the shell geometry (drives the no-scroll layout) */
+  --sidebar-w:  228px;
+  --header-h:   52px;
+
+  /* user-adjustable scale, set by the auto-scale hook */
+  --ui-scale:   1;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:        #f6f7f9;
+  --bg-2:      #eef1f5;
+  --surface:   #ffffff;
+  --surface-2: #f2f4f7;
+  --faint:     #0000000a;
+  --line:      #00000014;
+  --fg:        #1a2230;
+  --mut:       #5c6675;
+  --acc-fg:    #ffffff;
+  color-scheme: light;
+}
