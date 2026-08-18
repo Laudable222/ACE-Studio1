@@ -11,6 +11,7 @@ export function ResearchEngine() {
   const [docs,setDocs]=useState<Doc[]>([]); const [selected,setSelected]=useState<Doc|null>(null);
   const [busy,setBusy]=useState(false); const [analysis,setAnalysis]=useState<any>(null); const [matches,setMatches]=useState<any[]>([]);
   const [experiments,setExperiments]=useState<any[]>([]); const [name,setName]=useState("");
+  const [expanded,setExpanded]=useState<Set<number>>(new Set()); const [bulkMsg,setBulkMsg]=useState("");
 
   const refresh=()=>api.get<any>("/discovery/documents").then(d=>setDocs(d.documents||[]));
   useEffect(()=>{ refresh(); api.get<any>("/discovery/experiments").then(d=>setExperiments(d.experiments||[])); },[]);
@@ -50,15 +51,38 @@ export function ResearchEngine() {
     const d=await api.post<any>("/discovery/experiments",{name:name||h.statement?.slice(0,70)||"Research experiment",region:R.ctx.region,delay:R.ctx.delay,universe:R.ctx.universe,research_ids:selected?[selected.id]:[],hypothesis:h,field_ids:picked});
     if(d.error) return toastErr(d.error); setName(""); const e=await api.get<any>("/discovery/experiments"); setExperiments(e.experiments||[]); toast(`Experiment #${d.id} created.`,"ok");
   }
+  async function generateOne(e:any):Promise<number>{
+    // -1 signals skip/failure; caller decides how to report it. Shared by the single-experiment
+    // and "generate for all hypotheses" paths so both run the exact same job + poll logic.
+    if(!e.field_ids?.length) return -1;
+    const start=await api.post<any>("/discovery/experiments/generate",{experiment_id:e.id,n:12,max_operators:4,repair_rounds:2});
+    if(start.error) return -1;
+    let s:any={}; for(;;){s=await api.get(`/research/jobs/${start.job_id}`); if(s.status!=="running") break; await new Promise(r=>setTimeout(r,1000));}
+    if(s.status!=="done") return -1;
+    return s.result?.valid?.length||0;
+  }
   async function generateExperiment(e:any){
     if(!e.field_ids?.length) return toast("This experiment has no saved BRAIN fields — map the hypothesis and create it again.","warn");
     setBusy(true);
-    const start=await api.post<any>("/discovery/experiments/generate",{experiment_id:e.id,n:12,max_operators:4,repair_rounds:2});
-    if(start.error){setBusy(false);return toastErr(start.error)}
-    let s:any={}; for(;;){s=await api.get(`/research/jobs/${start.job_id}`); if(s.status!=="running") break; await new Promise(r=>setTimeout(r,1000));}
-    setBusy(false); if(s.status!=="done") return toastErr(s.error||"Generation failed.");
-    const d=await api.get<any>("/discovery/experiments"); setExperiments(d.experiments||[]); toast(`${s.result?.valid?.length||0} candidates added to experiment #${e.id}.`,"ok");
+    const n=await generateOne(e);
+    setBusy(false);
+    if(n<0) return toastErr("Generation failed.");
+    const d=await api.get<any>("/discovery/experiments"); setExperiments(d.experiments||[]); toast(`${n} candidates added to experiment #${e.id}.`,"ok");
   }
+  async function generateAll(){
+    const targets=experiments.filter(e=>e.field_ids?.length);
+    if(!targets.length) return toast("No experiments have BRAIN fields mapped yet.","warn");
+    setBusy(true); let total=0, failed=0;
+    for(let i=0;i<targets.length;i++){
+      setBulkMsg(`Generating hypothesis ${i+1}/${targets.length}: ${targets[i].name||"#"+targets[i].id}…`);
+      const n=await generateOne(targets[i]);
+      if(n<0) failed++; else total+=n;
+    }
+    setBulkMsg(""); setBusy(false);
+    const d=await api.get<any>("/discovery/experiments"); setExperiments(d.experiments||[]);
+    toast(`${total} candidate(s) added across ${targets.length-failed}/${targets.length} hypothes${targets.length===1?"is":"es"}.${failed?` ${failed} failed.`:""}`,failed?"warn":"ok");
+  }
+  function toggleExpand(id:number){ setExpanded(prev=>{ const n=new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; }); }
 
   function sendToGeneration(h:any){
     const matched=matches.slice(0,8).map(x=>x.field.id).join(", ");
@@ -91,7 +115,14 @@ export function ResearchEngine() {
     <div className="panel" style={{padding:14,overflow:"auto"}}>
       <div className="dx-head"><b>Experiments</b><span className="mut">{experiments.length}</span></div>
       <label className="fld"><span>Next experiment name</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Cash-flow underreaction"/></label>
-      {experiments.map(e=><div key={e.id} style={{padding:"9px 0",borderBottom:"1px solid var(--line)"}}><b>#{e.id} {e.name}</b><div className="mut" style={{fontSize:11}}>{e.status} · {e.region} D{e.delay} · {e.field_ids?.length||0} fields · {e.expressions?.length||0} candidates</div><div style={{fontSize:12,marginTop:4}}>{e.hypothesis?.statement||""}</div><button className="btn ghost sm" style={{marginTop:6}} onClick={()=>generateExperiment(e)} disabled={busy}>Generate candidates</button></div>)}
+      {experiments.length>1&&<button className="btn ghost sm" style={{marginTop:6}} onClick={generateAll} disabled={busy}>{busy&&bulkMsg?<><span className="spin"/> {bulkMsg}</>:"Generate for all hypotheses"}</button>}
+      {experiments.map(e=><div key={e.id} style={{padding:"9px 0",borderBottom:"1px solid var(--line)"}}>
+        <b>#{e.id} {e.name}</b>
+        <div className="mut" style={{fontSize:11}}>{e.status} · {e.region} D{e.delay} · <span style={{cursor:e.field_ids?.length?"pointer":"default",textDecoration:e.field_ids?.length?"underline":"none"}} onClick={()=>e.field_ids?.length&&toggleExpand(e.id)}>{expanded.has(e.id)?"▾":"▸"} {e.field_ids?.length||0} field{e.field_ids?.length===1?"":"s"}</span> · {e.expressions?.length||0} candidates</div>
+        {expanded.has(e.id)&&<div style={{marginTop:5,marginBottom:2,fontSize:11}}>{(e.field_ids||[]).map((f:any,i:number)=><div key={i} className="mut" style={{padding:"2px 0"}}><code>{typeof f==="string"?f:f.id}</code>{typeof f!=="string"&&f.dataset_id&&<> — {f.dataset_id}</>}</div>)}</div>}
+        <div style={{fontSize:12,marginTop:4}}>{e.hypothesis?.statement||""}</div>
+        <button className="btn ghost sm" style={{marginTop:6}} onClick={()=>generateExperiment(e)} disabled={busy}>Generate candidates</button>
+      </div>)}
       {!experiments.length&&<div className="empty">Create an experiment from a hypothesis.</div>}
     </div>
   </div>
