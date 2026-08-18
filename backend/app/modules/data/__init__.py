@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.brain import engine
 from app.brain.engine import SessionExpired
+from app.core.jobs import jobs
 from app.knowledge import service as ks
 PREFIX="/api/data"
 router=APIRouter()
@@ -21,11 +22,27 @@ def options(refresh:bool=False):
  except Exception as e:raise HTTPException(400,str(e))
 @router.post("/datasets")
 def datasets(req:FetchReq):
- try:
+ # Runs as a background job: fetching every dataset's fields right after the datasets
+ # themselves (so the local catalogue is complete, and Auto-map never has to fall back
+ # to BRAIN) can take a few minutes for a large universe — too slow for one blocking
+ # request. Poll /research/jobs/{job_id} (the shared job registry) for progress/result.
+ def task(progress, should_cancel):
   eff_region, eff_delay, eff_universe = engine.valid_combo(req.instrument, req.region, req.delay, req.universe)
-  rows=engine.get_datasets(req.region,req.universe,req.delay,req.instrument,req.theme,req.coverage_min,req.value_min,req.category); ks.ingest_datasets(eff_region,eff_delay,req.instrument,eff_universe,rows); return {"rows":rows,"count":len(rows),"requested":{"region":req.region,"delay":req.delay,"universe":req.universe},"effective":{"region":eff_region,"delay":eff_delay,"universe":eff_universe}}
- except SessionExpired as e:raise HTTPException(401,str(e))
- except Exception as e:raise HTTPException(400,str(e))
+  progress(message="fetching datasets…")
+  rows=engine.get_datasets(req.region,req.universe,req.delay,req.instrument,req.theme,req.coverage_min,req.value_min,req.category)
+  ks.ingest_datasets(eff_region,eff_delay,req.instrument,eff_universe,rows)
+  ids=[str(r["id"]) for r in rows if r.get("id")]
+  field_rows=[]
+  if ids and not should_cancel():
+   progress(message=f"fetching fields for {len(ids)} dataset(s)… this can take a few minutes",total=len(ids))
+   df,_raw=engine.fetch_fields(ids,req.region,req.universe,req.delay,req.instrument,"ALL","")
+   field_rows=engine._json_safe(df.to_dict(orient="records")) if df is not None and not df.empty else []
+   ks.ingest_fields(eff_region,eff_delay,ids,field_rows)
+   progress(message=f"done: {len(rows)} dataset(s), {len(field_rows)} field(s) catalogued",done=len(ids))
+  return {"rows":rows,"count":len(rows),"fields":field_rows,"field_count":len(field_rows),
+          "requested":{"region":req.region,"delay":req.delay,"universe":req.universe},
+          "effective":{"region":eff_region,"delay":eff_delay,"universe":eff_universe}}
+ return {"job_id":jobs.submit("data-fetch",task)}
 @router.post("/fields")
 def fields(req:FieldsReq):
  try:
