@@ -7,6 +7,11 @@ studio/ace_studio.db-shm
 studio/wqb_options.json
 studio/templates.json
 
+# SQLite write-ahead-log / shared-memory files — regenerated automatically on every
+# app run, never meaningful to diff or commit. The main .db file is still tracked.
+data/*.db-wal
+data/*.db-shm
+
 # Notebook / run outputs
 alphas_*.py
 simulation_results/
