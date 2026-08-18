@@ -44,16 +44,16 @@ export function ResearchEngine() {
   }
   async function createExperiment(h:any){
     const scoped=matches.filter(m=>{ const x=m.hypothesis; return !x || x===h || (x.statement && h.statement && x.statement===h.statement); });
-    const ids=[...new Set(scoped.slice(0,8).map(x=>x.field?.id).filter(Boolean))];
-    if(!ids.length) return toast("Map this hypothesis to BRAIN fields first.","warn");
-    const d=await api.post<any>("/discovery/experiments",{name:name||h.statement?.slice(0,70)||"Research experiment",region:R.ctx.region,delay:R.ctx.delay,universe:R.ctx.universe,research_ids:selected?[selected.id]:[],hypothesis:h,field_ids:ids});
+    const seen=new Set<string>(); const picked:any[]=[];
+    for(const m of scoped){ const f=m.field; if(!f?.id||!f?.dataset_id) continue; const k=`${f.id}|${f.dataset_id}`; if(seen.has(k)) continue; seen.add(k); picked.push(f); if(picked.length>=8) break; }
+    if(!picked.length) return toast("Map this hypothesis to BRAIN fields first.","warn");
+    const d=await api.post<any>("/discovery/experiments",{name:name||h.statement?.slice(0,70)||"Research experiment",region:R.ctx.region,delay:R.ctx.delay,universe:R.ctx.universe,research_ids:selected?[selected.id]:[],hypothesis:h,field_ids:picked});
     if(d.error) return toastErr(d.error); setName(""); const e=await api.get<any>("/discovery/experiments"); setExperiments(e.experiments||[]); toast(`Experiment #${d.id} created.`,"ok");
   }
   async function generateExperiment(e:any){
-    const experimentFields=matches.filter(m=>m.field?.id).map(m=>m.field);
-    if(!experimentFields.length) return toast("Map the research hypotheses to BRAIN fields first.","warn");
-    setBusy(true); const cats:Record<string,string>={}; experimentFields.forEach((f:any)=>{ const ds=R.datasets.find(x=>x.id===f.dataset_id) as any; if(ds?.category_id) cats[f.id]=ds.category_id; });
-    const start=await api.post<any>("/discovery/experiments/generate",{experiment_id:e.id,fields:experimentFields.map((f:any)=>({id:f.id,type:f.type,description:f.description,dataset_id:f.dataset_id,category_id:f.category_id||""})),categories:cats,n:12,max_operators:4,repair_rounds:2});
+    if(!e.field_ids?.length) return toast("This experiment has no saved BRAIN fields — map the hypothesis and create it again.","warn");
+    setBusy(true);
+    const start=await api.post<any>("/discovery/experiments/generate",{experiment_id:e.id,n:12,max_operators:4,repair_rounds:2});
     if(start.error){setBusy(false);return toastErr(start.error)}
     let s:any={}; for(;;){s=await api.get(`/research/jobs/${start.job_id}`); if(s.status!=="running") break; await new Promise(r=>setTimeout(r,1000));}
     setBusy(false); if(s.status!=="done") return toastErr(s.error||"Generation failed.");

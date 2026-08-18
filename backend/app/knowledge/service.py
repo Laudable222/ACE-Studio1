@@ -188,7 +188,69 @@ def catalogue_fields(dataset_ids: list, region: str, delay: int,
         "is_virgin": r.is_virgin,
     } for r in rows]
 
-def overview() -> dict:
+
+def fields_by_refs(refs: list, region: str, delay: int) -> list:
+    """Resolve saved (field_id, dataset_id) references back to full catalogue rows.
+
+    Each ref is normally {"id": field_id, "dataset_id": dataset_id, ...} — the shape saved
+    with an Experiment. For experiments created before dataset_id was saved alongside the
+    field id, a ref may just be a bare field_id string; those are resolved by id only
+    (region/delay scoped), which can occasionally match more than one dataset if the same
+    field id is reused across datasets — an unavoidable ambiguity for that legacy shape.
+    """
+    pairs: set[tuple[str, str]] = set()
+    id_only: set[str] = set()
+    all_ids: set[str] = set()
+    for r in (refs or []):
+        if isinstance(r, dict):
+            fid = str(r.get("id") or "").strip()
+            dsid = str(r.get("dataset_id") or "").strip()
+        else:
+            fid, dsid = str(r or "").strip(), ""
+        if not fid:
+            continue
+        all_ids.add(fid)
+        if dsid:
+            pairs.add((fid, dsid))
+        else:
+            id_only.add(fid)
+    if not all_ids:
+        return []
+    with SessionLocal() as db:
+        rows = db.scalars(select(M.Field).where(
+            M.Field.field_id.in_(all_ids),
+            M.Field.region == str(region),
+            M.Field.delay == int(delay),
+        )).all()
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for r in rows:
+        key = (r.field_id, r.dataset_id)
+        if key not in pairs and r.field_id not in id_only:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "id": r.field_id, "dataset_id": r.dataset_id, "region": r.region, "delay": r.delay,
+            "type": r.type, "prefix": r.prefix, "description": r.description,
+            "alphaCount": r.alpha_count, "is_virgin": r.is_virgin,
+        })
+    return out
+
+
+def dataset_categories(dataset_ids: list, region: str, delay: int) -> dict:
+    """dataset_id -> category, for the datasets already catalogued in this region/delay."""
+    ids = [str(x).strip() for x in (dataset_ids or []) if str(x).strip()]
+    if not ids:
+        return {}
+    with SessionLocal() as db:
+        rows = db.scalars(select(M.Dataset).where(
+            M.Dataset.dataset_id.in_(ids), M.Dataset.region == str(region), M.Dataset.delay == int(delay),
+        )).all()
+    return {r.dataset_id: r.category for r in rows if r.category}
+
+
     with SessionLocal() as db:
         n_ds = db.scalar(select(func.count()).select_from(M.Dataset)) or 0
         n_fields = db.scalar(select(func.count()).select_from(M.Field)) or 0

@@ -99,7 +99,7 @@ class ExperimentReq(BaseModel):
     universe:str='TOP3000'
     research_ids:list[int]=[]
     hypothesis:dict={}
-    field_ids:list[str]=[]
+    field_ids:list[dict]=[]
     notes:str=''
 
 @router.post('/experiments')
@@ -136,8 +136,6 @@ def mutate(req:MutateReq):
 
 class ExperimentGenerateReq(BaseModel):
     experiment_id:int
-    fields:list[dict]=[]
-    categories:dict[str,str]={}
     n:int=12
     max_operators:int=4
     repair_rounds:int=2
@@ -145,11 +143,22 @@ class ExperimentGenerateReq(BaseModel):
 @router.post('/experiments/generate')
 def experiment_generate(req:ExperimentGenerateReq):
     from app.generation import service as gen
+    from app.knowledge import service as ks
     with SessionLocal() as db:
         row=db.get(M.Experiment,req.experiment_id)
         if not row: raise HTTPException(404,'experiment not found')
         hypothesis=service._safe_json(row.hypothesis_json,{})
-    if not req.fields: raise HTTPException(400,'Select the BRAIN fields that belong to this experiment.')
+        field_refs=service._safe_json(row.field_ids_json,[])
+    if not field_refs:
+        raise HTTPException(400,'This experiment has no BRAIN fields saved. Map the hypothesis to fields and create it again.')
+    # Resolved from the experiment's own saved field references — not from whatever happens
+    # to be on screen right now — so generation always uses exactly what was mapped for THIS
+    # hypothesis, even if the Research Engine screen has since moved on to another report.
+    fields=ks.fields_by_refs(field_refs,row.region,row.delay)
+    if not fields:
+        raise HTTPException(400,f'The BRAIN fields saved for this experiment are not in the local catalogue for '
+                                 f'{row.region} D{row.delay}. Fetch datasets for this region/delay in Data Explorer, then create the experiment again.')
+    categories=ks.dataset_categories([f['dataset_id'] for f in fields],row.region,row.delay)
     prompt=(f"Test this research hypothesis: {hypothesis.get('statement','')}\n"
             f"Economic mechanism: {hypothesis.get('mechanism','')}\n"
             f"Expected sign: {hypothesis.get('expected_sign',hypothesis.get('sign',''))}\n"
@@ -158,13 +167,13 @@ def experiment_generate(req:ExperimentGenerateReq):
             "Prefer structurally different constructions and avoid cosmetic duplicates.")
     def task(progress,should_cancel):
         out=gen.run_generation(mode='multi',prompt=prompt,region=row.region,delay=row.delay,instrument='EQUITY',universe=row.universe,
-                               dataset_names=[],fields=req.fields,categories=req.categories,max_operators=req.max_operators,n=req.n,
+                               dataset_names=[],fields=fields,categories=categories,max_operators=req.max_operators,n=req.n,
                                repair_rounds=req.repair_rounds,region_note='',progress=progress,raw_prompt=False)
         with SessionLocal() as db:
             r=db.get(M.Experiment,req.experiment_id); exprs=service._safe_json(r.expression_json,[])
             exprs=list(dict.fromkeys(exprs+out.get('valid',[]))); r.expression_json=json.dumps(exprs); r.status='generated'; db.commit()
         for e in out.get('valid',[]):
-            try: service.save_dna(service.alpha_dna(e,row.region,req.categories))
+            try: service.save_dna(service.alpha_dna(e,row.region,categories))
             except Exception: pass
         out['experiment_id']=req.experiment_id
         return out
