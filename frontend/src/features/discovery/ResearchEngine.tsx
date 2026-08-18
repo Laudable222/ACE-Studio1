@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useResearch } from "../../lib/store";
 import { useToast } from "../../lib/toast";
@@ -8,6 +9,7 @@ type Doc = { id:number; title:string; source:string; status:string; chars:number
 
 export function ResearchEngine() {
   const R=useResearch(); const {toast,toastErr}=useToast(); const fileRef=useRef<HTMLInputElement>(null);
+  const nav=useNavigate();
   const [docs,setDocs]=useState<Doc[]>([]); const [selected,setSelected]=useState<Doc|null>(null);
   const [busy,setBusy]=useState(false); const [analysis,setAnalysis]=useState<any>(null); const [matches,setMatches]=useState<any[]>([]);
   const [experiments,setExperiments]=useState<any[]>([]); const [name,setName]=useState("");
@@ -83,6 +85,19 @@ export function ResearchEngine() {
     toast(`${total} candidate(s) added across ${targets.length-failed}/${targets.length} hypothes${targets.length===1?"is":"es"}.${failed?` ${failed} failed.`:""}`,failed?"warn":"ok");
   }
   function toggleExpand(id:number){ setExpanded(prev=>{ const n=new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; }); }
+  function sendExperimentToSimulate(e:any){
+    const exprs:string[]=e.expressions||[];
+    if(!exprs.length) return toast("This experiment has no generated candidates yet — Generate first.","warn");
+    // An experiment carries its OWN region/delay/universe, which can differ from whatever the
+    // rest of the app is currently pointed at (Data Explorer etc). Simulation always simulates
+    // under that shared global context — not from anything handed to it — so without syncing
+    // it first, these expressions would silently run under the wrong region.
+    const drift = e.region!==R.ctx.region || e.delay!==R.ctx.delay || e.universe!==R.ctx.universe;
+    R.setCtx({instrument:"EQUITY", region:e.region, delay:e.delay, universe:e.universe});
+    R.setPending(exprs);
+    if(drift) toast(`Switched context to ${e.region} D${e.delay} ${e.universe} to match this experiment.`,"ok");
+    nav("/simulate");
+  }
 
   function sendToGeneration(h:any){
     const matched=matches.slice(0,8).map(x=>x.field.id).join(", ");
@@ -121,7 +136,10 @@ export function ResearchEngine() {
         <div className="mut" style={{fontSize:11}}>{e.status} · {e.region} D{e.delay} · <span style={{cursor:e.field_ids?.length?"pointer":"default",textDecoration:e.field_ids?.length?"underline":"none"}} onClick={()=>e.field_ids?.length&&toggleExpand(e.id)}>{expanded.has(e.id)?"▾":"▸"} {e.field_ids?.length||0} field{e.field_ids?.length===1?"":"s"}</span> · {e.expressions?.length||0} candidates</div>
         {expanded.has(e.id)&&<div style={{marginTop:5,marginBottom:2,fontSize:11}}>{(e.field_ids||[]).map((f:any,i:number)=><div key={i} className="mut" style={{padding:"2px 0"}}><code>{typeof f==="string"?f:f.id}</code>{typeof f!=="string"&&f.dataset_id&&<> — {f.dataset_id}</>}</div>)}</div>}
         <div style={{fontSize:12,marginTop:4}}>{e.hypothesis?.statement||""}</div>
-        <button className="btn ghost sm" style={{marginTop:6}} onClick={()=>generateExperiment(e)} disabled={busy}>Generate candidates</button>
+        <div style={{display:"flex",gap:6,marginTop:6}}>
+          <button className="btn ghost sm" onClick={()=>generateExperiment(e)} disabled={busy}>Generate candidates</button>
+          {e.expressions?.length>0&&<button className="btn sm" onClick={()=>sendExperimentToSimulate(e)}>Send {e.expressions.length} To Simulate →</button>}
+        </div>
       </div>)}
       {!experiments.length&&<div className="empty">Create an experiment from a hypothesis.</div>}
     </div>
