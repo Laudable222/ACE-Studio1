@@ -54,6 +54,7 @@ class SimReq(BaseModel):
     get_stats: bool = False
     execution_key: str = ""
     variant_id: int = 0
+    experiment_id: int = 0   # set when these expressions came from a Research Engine experiment, for sim_results provenance
 
 
 @router.post("/run")
@@ -75,7 +76,8 @@ def run(req: SimReq):
             min_fitness=min_fitness, max_corr=req.max_corr, tag=req.tag, winner_tag=req.winner_tag,
             winner_color=req.winner_color, tag_winners_above=req.tag_winners_above,
             check_submission=req.check_submission, get_pnl=req.get_pnl, get_stats=req.get_stats,
-            progress=progress, should_cancel=should_cancel, execution_key=req.execution_key, variant_id=req.variant_id)
+            progress=progress, should_cancel=should_cancel, execution_key=req.execution_key, variant_id=req.variant_id,
+            experiment_id=req.experiment_id)
 
     return {"job_id": jobs.submit("simulate", task)}
 

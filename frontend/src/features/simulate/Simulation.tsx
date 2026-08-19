@@ -19,6 +19,7 @@ export function Simulation() {
   const { toast, toastErr } = useToast();
 
   const [expr, setExpr] = usePersistentState("sim:expr", (R.pending || []).join("\n"));
+  const [expOrigin, setExpOrigin] = usePersistentState<number | null>("sim:exporigin", null);   // Experiment id the CURRENT unedited expr text came from, if any
   const [unis, setUnis] = usePersistentState<string[]>("sim:unis", [R.ctx.universe]);
   const [neuts, setNeuts] = usePersistentState<string[]>("sim:neuts", ["INDUSTRY"]);
   const [decay, setDecay] = usePersistentState("sim:decay", 4);
@@ -66,7 +67,7 @@ export function Simulation() {
   const lastPending = useRef<string>("");
   useEffect(() => {
     const key = (R.pending || []).join("\n");
-    if (key && key !== lastPending.current) { lastPending.current = key; setExpr(key); }
+    if (key && key !== lastPending.current) { lastPending.current = key; setExpr(key); setExpOrigin(R.pendingExperimentId ?? null); }
   }, [R.pending]);
 
   // Keep chosen universes valid for the current region without wiping the user's selection:
@@ -131,6 +132,7 @@ export function Simulation() {
       min_sharpe: gate.sharpe, min_fitness: gate.fitness,
       max_turnover: gate.max_turnover, max_corr: gate.max_corr, tag, winner_tag: winnerTag,
       tag_winners_above: winAbove, check_submission: checkSub,
+      experiment_id: expOrigin ?? undefined,
     });
     if (start.error || !start.job_id) { setBusy(false); return toastErr(start.error || "Could not start."); }
     setJobId(start.job_id);
@@ -216,8 +218,8 @@ export function Simulation() {
         <div className="dx-head"><b>Simulation</b>
           <span className="mut">{R.ctx.region} · D{R.ctx.delay} · {exprs.length}{exprs.length !== allExprs.length ? ` of ${allExprs.length}` : ""} expr</span>
           {busy ? <span className="badge ok" style={{ marginLeft: "auto" }}>running</span> : null}</div>
-        <label className="fld"><span>Expressions (One Per Line — From Generation)</span>
-          <textarea value={expr} onChange={(e) => setExpr(e.target.value)} style={{ minHeight: 92 }} /></label>
+        <label className="fld"><span>Expressions (One Per Line — From Generation){expOrigin ? <span className="badge ok" style={{ marginLeft: 6 }}>linked to experiment #{expOrigin}</span> : null}</span>
+          <textarea value={expr} onChange={(e) => { setExpr(e.target.value); setExpOrigin(null); }} style={{ minHeight: 92 }} /></label>
 
         <label style={{ fontSize: 11, color: "var(--mut)", marginTop: 8, display: "block" }}>Universes</label>
         <div className="dx-filters wrap">{universes.map((u) =>

@@ -29,6 +29,7 @@ interface Research {
   selDatasets: string[]; setSelDatasets: (v: string[]) => void;
   selFields: string[]; setSelFields: (v: string[]) => void;
   pending: string[]; setPending: (v: string[]) => void;   // expressions handed off to Simulation
+  pendingExperimentId: number | null; setPendingExperimentId: (v: number | null) => void;   // which Experiment (if any) those expressions came from, for sim_results provenance
   flow: Flow; setFlow: (f: Partial<Flow>) => void; clearFlow: () => void;
   // derived option helpers
   regions: (inst: string) => string[];
@@ -56,6 +57,7 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
   const [selDatasets, setSelDatasets] = useState<string[]>(saved.selDatasets || []);
   const [selFields, setSelFields] = useState<string[]>(saved.selFields || []);
   const [pending, setPending] = useState<string[]>(saved.pending || []);
+  const [pendingExperimentId, setPendingExperimentId] = useState<number | null>(saved.pendingExperimentId ?? null);
   const EMPTY_FLOW: Flow = { goal: "", datasets: [], promptName: "", promptBody: "" };
   const [flow, setFlowState] = useState<Flow>(saved.flow || EMPTY_FLOW);
 
@@ -65,10 +67,10 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
 
   // persist (skip the big datasets/fields arrays if they blow the quota)
   useEffect(() => {
-    const snap = { ctx, selDatasets, selFields, datasets, fields, pending, flow };
+    const snap = { ctx, selDatasets, selFields, datasets, fields, pending, pendingExperimentId, flow };
     try { localStorage.setItem(KEY, JSON.stringify(snap)); }
-    catch { try { localStorage.setItem(KEY, JSON.stringify({ ctx, selDatasets, selFields, pending, flow })); } catch {} }
-  }, [ctx, selDatasets, selFields, datasets, fields, pending, flow]);
+    catch { try { localStorage.setItem(KEY, JSON.stringify({ ctx, selDatasets, selFields, pending, pendingExperimentId, flow })); } catch {} }
+  }, [ctx, selDatasets, selFields, datasets, fields, pending, pendingExperimentId, flow]);
 
   const setCtx = (patch: Partial<Ctx>) => setCtxState((c) => ({ ...c, ...patch }));
   const setFlow = (patch: Partial<Flow>) => setFlowState((f) => ({ ...f, ...patch }));
@@ -78,6 +80,7 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Research>(() => ({
     ctx, setCtx, options, datasets, setDatasets, fields, setFields,
     selDatasets, setSelDatasets, selFields, setSelFields, pending, setPending,
+    pendingExperimentId, setPendingExperimentId,
     flow, setFlow, clearFlow,
     instruments: () => uniq(options.map((r) => r.instrument)),
     regions: (inst) => uniq(options.filter((r) => !inst || r.instrument === inst).map((r) => r.region)),
@@ -88,7 +91,7 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
       if (!rr.length) rr = options.filter((r) => r.instrument === inst && r.region === region);
       return uniq(rr.flatMap((r) => r.universes));
     },
-  }), [ctx, options, datasets, fields, selDatasets, selFields, pending, flow]);
+  }), [ctx, options, datasets, fields, selDatasets, selFields, pending, pendingExperimentId, flow]);
 
   return <ResearchCtx.Provider value={value}>{children}</ResearchCtx.Provider>;
 }

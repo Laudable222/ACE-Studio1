@@ -139,7 +139,7 @@ export function Generation() {
         <div className="dx-head"><b>Expressions</b>
           {valid.length ? <span className="mut">{valid.length} valid · {rejected.length} rejected</span> : null}
           {valid.length ? <button className="btn sm" style={{ marginLeft: "auto" }}
-            onClick={() => { R.setPending(valid); nav("/simulate"); }}>Send {valid.length} To Simulate →</button> : null}
+            onClick={() => { R.setPendingExperimentId(null); R.setPending(valid); nav("/simulate"); }}>Send {valid.length} To Simulate →</button> : null}
           {valid.length ? <button className="btn ghost sm"
             onClick={() => { navigator.clipboard?.writeText(valid.join("\n")); toast("Copied."); }}>Copy</button> : null}
         </div>

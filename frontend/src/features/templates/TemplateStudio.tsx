@@ -261,7 +261,7 @@ export function TemplateStudio() {
           <b>Expansions</b>
           {out ? <span className="mut">{out.report.valid} valid · {out.report.rejected} rejected</span> : null}
           {valid.length ? <button className="btn sm" style={{ marginLeft: "auto" }}
-            onClick={() => { R.setPending(valid); nav("/simulate"); }}>Send {valid.length} To Simulate →</button> : null}
+            onClick={() => { R.setPendingExperimentId(null); R.setPending(valid); nav("/simulate"); }}>Send {valid.length} To Simulate →</button> : null}
         </div>
         <div className="tpl-body flush">
           {!out ? <div className="empty">Select fields, write a template, and Preview. VECTOR fields fan out across your vec_* choices; multi-field takes a bounded product.</div> :

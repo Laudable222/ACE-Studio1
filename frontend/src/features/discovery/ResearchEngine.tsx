@@ -94,6 +94,7 @@ export function ResearchEngine() {
     // it first, these expressions would silently run under the wrong region.
     const drift = e.region!==R.ctx.region || e.delay!==R.ctx.delay || e.universe!==R.ctx.universe;
     R.setCtx({instrument:"EQUITY", region:e.region, delay:e.delay, universe:e.universe});
+    R.setPendingExperimentId(e.id);
     R.setPending(exprs);
     if(drift) toast(`Switched context to ${e.region} D${e.delay} ${e.universe} to match this experiment.`,"ok");
     nav("/simulate");
@@ -133,7 +134,7 @@ export function ResearchEngine() {
       {experiments.length>1&&<button className="btn ghost sm" style={{marginTop:6}} onClick={generateAll} disabled={busy}>{busy&&bulkMsg?<><span className="spin"/> {bulkMsg}</>:"Generate for all hypotheses"}</button>}
       {experiments.map(e=><div key={e.id} style={{padding:"9px 0",borderBottom:"1px solid var(--line)"}}>
         <b>#{e.id} {e.name}</b>
-        <div className="mut" style={{fontSize:11}}>{e.status} · {e.region} D{e.delay} · <span style={{cursor:e.field_ids?.length?"pointer":"default",textDecoration:e.field_ids?.length?"underline":"none"}} onClick={()=>e.field_ids?.length&&toggleExpand(e.id)}>{expanded.has(e.id)?"▾":"▸"} {e.field_ids?.length||0} field{e.field_ids?.length===1?"":"s"}</span> · {e.expressions?.length||0} candidates</div>
+        <div className="mut" style={{fontSize:11}}>{e.status} · {e.region} D{e.delay} · <span style={{cursor:e.field_ids?.length?"pointer":"default",textDecoration:e.field_ids?.length?"underline":"none"}} onClick={()=>e.field_ids?.length&&toggleExpand(e.id)}>{expanded.has(e.id)?"▾":"▸"} {e.field_ids?.length||0} field{e.field_ids?.length===1?"":"s"}</span> · {e.expressions?.length||0} candidates{e.simulated>0&&<> · {e.simulated} simulated · <span style={{color:e.passed>0?"var(--ok)":undefined}}>{e.passed} passed</span></>}</div>
         {expanded.has(e.id)&&<div style={{marginTop:5,marginBottom:2,fontSize:11}}>{(e.field_ids||[]).map((f:any,i:number)=><div key={i} className="mut" style={{padding:"2px 0"}}><code>{typeof f==="string"?f:f.id}</code>{typeof f!=="string"&&f.dataset_id&&<> — {f.dataset_id}</>}</div>)}</div>}
         <div style={{fontSize:12,marginTop:4}}>{e.hypothesis?.statement||""}</div>
         <div style={{display:"flex",gap:6,marginTop:6}}>

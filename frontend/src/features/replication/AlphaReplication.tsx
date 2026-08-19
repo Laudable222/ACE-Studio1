@@ -34,6 +34,7 @@ export function AlphaReplication() {
   }
 
   function simulate(expr: string) {
+    R.setPendingExperimentId(null);
     R.setPending([expr]);
     R.setCtx({ region: targetRegion.toUpperCase(), delay: targetDelay, universe: targetUniverse });
     nav("/simulate");

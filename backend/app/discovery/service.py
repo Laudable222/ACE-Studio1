@@ -496,10 +496,19 @@ def create_experiment(name, region, delay, universe, research_ids, hypothesis, f
 def list_experiments(limit=50):
     with SessionLocal() as db:
         rows=db.scalars(select(M.Experiment).order_by(M.Experiment.created_at.desc()).limit(limit)).all()
+        ids=[r.id for r in rows]
+        # sim_results.experiment_id links back here once candidates are sent to Simulation and
+        # actually run — lets the UI show real outcomes, not just "N candidates generated".
+        sim_counts={}
+        if ids:
+            agg=db.execute(select(M.SimResult.experiment_id, func.count(), func.sum(M.SimResult.passed_gate))
+                           .where(M.SimResult.experiment_id.in_(ids)).group_by(M.SimResult.experiment_id)).all()
+            sim_counts={eid: {"simulated": cnt, "passed": int(passed or 0)} for eid, cnt, passed in agg}
         return [{"id":r.id,"name":r.name,"status":r.status,"region":r.region,"delay":r.delay,"universe":r.universe,
                  "research_ids":_safe_json(r.research_ids_json,[]),"hypothesis":_safe_json(r.hypothesis_json,{}),
                  "field_ids":_safe_json(r.field_ids_json,[]),"expressions":_safe_json(r.expression_json,[]),
-                 "results":_safe_json(r.results_json,[]),"notes":r.notes,"created_at":r.created_at} for r in rows]
+                 "results":_safe_json(r.results_json,[]),"notes":r.notes,"created_at":r.created_at,
+                 **sim_counts.get(r.id,{"simulated":0,"passed":0})} for r in rows]
 
 
 def alpha_dna(expression:str, region:str="", categories:dict|None=None) -> dict:

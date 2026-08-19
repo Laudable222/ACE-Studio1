@@ -98,7 +98,7 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
                    test_period, pasteurization, unit_handling, nan_handling, max_trade, visualization,
                    concurrency, limit_of_multi, max_turnover, min_sharpe, min_fitness, max_corr,
                    tag, winner_tag, winner_color, tag_winners_above,
-                   check_submission, get_pnl, get_stats, progress, should_cancel, execution_key="", variant_id=0) -> dict:
+                   check_submission, get_pnl, get_stats, progress, should_cancel, execution_key="", variant_id=0, experiment_id=0) -> dict:
     import multiprocessing
     s = engine.require_session()
     exprs = [e.strip() for e in expressions if e.strip()]
@@ -271,7 +271,7 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
                                    universe=settings.get("universe", ""), neutralization=settings.get("neutralization", ""),
                                    sharpe=sharpe, fitness=fitness, turnover=turn, returns=returns,
                                    margin=margin, drawdown=drawdown, self_corr=self_c, prod_corr=prod_c, powerpool_corr=pool_c,
-                                   tests_failed=tests_failed, passed_gate=ok_gate, gate_reasons=json.dumps(reasons), n_ops=n_ops, tagged=tag_used, execution_key=execution_key, variant_id=int(variant_id or 0), execution_config_json=json.dumps({"delay": delay, "universe": settings.get("universe", ""), "neutralization": settings.get("neutralization", ""), "decay": decay, "truncation": truncation, "test_period": test_period, "pasteurization": pasteurization, "unit_handling": unit_handling, "nan_handling": nan_handling, "max_trade": max_trade, "visualization": visualization, "gate_thresholds": {"sharpe": thr_sharpe, "fitness": thr_fit, "max_turnover": max_turnover, "max_corr": max_corr}})))
+                                   tests_failed=tests_failed, passed_gate=ok_gate, gate_reasons=json.dumps(reasons), n_ops=n_ops, tagged=tag_used, execution_key=execution_key, variant_id=int(variant_id or 0), experiment_id=int(experiment_id or 0), execution_config_json=json.dumps({"delay": delay, "universe": settings.get("universe", ""), "neutralization": settings.get("neutralization", ""), "decay": decay, "truncation": truncation, "test_period": test_period, "pasteurization": pasteurization, "unit_handling": unit_handling, "nan_handling": nan_handling, "max_trade": max_trade, "visualization": visualization, "gate_thresholds": {"sharpe": thr_sharpe, "fitness": thr_fit, "max_turnover": max_turnover, "max_corr": max_corr}})))
                 db.commit()
         except Exception as mem_err:
             # Research memory must never make a BRAIN simulation fail. The core SimResult is still stored.
@@ -280,7 +280,7 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
                                    universe=settings.get("universe", ""), neutralization=settings.get("neutralization", ""),
                                    sharpe=sharpe, fitness=fitness, turnover=turn, returns=returns, margin=margin, drawdown=drawdown,
                                    self_corr=self_c, prod_corr=prod_c, powerpool_corr=pool_c, tests_failed=tests_failed,
-                                   passed_gate=ok_gate, gate_reasons=json.dumps(reasons), n_ops=n_ops, tagged=tag_used, execution_key=execution_key, variant_id=int(variant_id or 0), execution_config_json=json.dumps({"delay": delay, "universe": settings.get("universe", ""), "neutralization": settings.get("neutralization", ""), "decay": decay, "truncation": truncation, "test_period": test_period, "pasteurization": pasteurization, "unit_handling": unit_handling, "nan_handling": nan_handling, "max_trade": max_trade, "visualization": visualization, "gate_thresholds": {"sharpe": thr_sharpe, "fitness": thr_fit, "max_turnover": max_turnover, "max_corr": max_corr}})))
+                                   passed_gate=ok_gate, gate_reasons=json.dumps(reasons), n_ops=n_ops, tagged=tag_used, execution_key=execution_key, variant_id=int(variant_id or 0), experiment_id=int(experiment_id or 0), execution_config_json=json.dumps({"delay": delay, "universe": settings.get("universe", ""), "neutralization": settings.get("neutralization", ""), "decay": decay, "truncation": truncation, "test_period": test_period, "pasteurization": pasteurization, "unit_handling": unit_handling, "nan_handling": nan_handling, "max_trade": max_trade, "visualization": visualization, "gate_thresholds": {"sharpe": thr_sharpe, "fitness": thr_fit, "max_turnover": max_turnover, "max_corr": max_corr}})))
                 db.commit()
 
         # Evolution simulations carry an exact variant_id + execution_key. Attach using that

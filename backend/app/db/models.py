@@ -123,6 +123,7 @@ class SimResult(Base):
     tagged: Mapped[str] = mapped_column(String, default="")
     execution_key: Mapped[str] = mapped_column(String, default="", index=True)
     variant_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    experiment_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
     execution_config_json: Mapped[str] = mapped_column(Text, default="{}")
 
 

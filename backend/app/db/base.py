@@ -45,7 +45,7 @@ def _ensure_columns() -> None:
     introduced later, but startup must remain zero-touch for a local-first application."""
     from sqlalchemy import inspect, text
     wanted = {
-        "sim_results": [("margin", "FLOAT"), ("drawdown", "FLOAT"), ("execution_key", "VARCHAR(128)"), ("variant_id", "INTEGER"), ("execution_config_json", "TEXT")],
+        "sim_results": [("margin", "FLOAT"), ("drawdown", "FLOAT"), ("execution_key", "VARCHAR(128)"), ("variant_id", "INTEGER"), ("execution_config_json", "TEXT"), ("experiment_id", "INTEGER")],
         "alpha_variants": [("execution_key", "VARCHAR(128)")],
         "submission_records": [("sim_result_id", "INTEGER"), ("variant_id", "INTEGER"), ("execution_key", "VARCHAR(128)")],
     }
