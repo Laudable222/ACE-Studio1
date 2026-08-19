@@ -207,22 +207,29 @@ def _autopilot_discovery_prompt(*, region, delay, instrument, goal, paper_text, 
 
 
 def _autopilot_field_selection(*, hypotheses, datasets, region, delay, instrument,
-                               max_datasets_per_hypothesis=6, max_fields_per_hypothesis=16,
+                               max_datasets_per_hypothesis=None, max_fields_per_hypothesis=None,
                                progress=None):
     """
     Build a hypothesis -> verified BRAIN datasets/fields map.
 
-    All datasets returned by BRAIN are scored. Only the best few datasets per hypothesis
-    are expanded into fields, which keeps the catalogue scan broad without downloading an
-    impractical number of field rows.
+    Sourced entirely from the local catalogue (Data Explorer's ingest_datasets/ingest_fields) —
+    never queries BRAIN directly.
+
+    No fixed top-N cap: every catalogued dataset/field that scores above zero for a hypothesis
+    (i.e. shares at least one meaningful token with it) is used, however many that is. A
+    zero-score row is still excluded — with no relevance gate at all, EVERY hypothesis would
+    get the entire regional catalogue verbatim regardless of fit, which both drowns out genuine
+    grounding and risks overflowing the generation prompt for a large catalogue. Pass an explicit
+    max_*_per_hypothesis if you want the old top-N behaviour back for a specific run.
     """
-    from app.brain import engine as brain
+    from app.knowledge import service as knowledge_service
 
     ranked = []
     for h in hypotheses:
         q = f"{h.get('idea','')} {h.get('mechanism','')}"
-        ds = sorted(datasets, key=lambda d: _catalogue_score(q, d), reverse=True)
-        chosen = [d for d in ds[:max_datasets_per_hypothesis] if d.get("id")]
+        scored = [(d, _catalogue_score(q, d)) for d in datasets if d.get("id")]
+        scored = [d for d, s in sorted(scored, key=lambda x: x[1], reverse=True) if s > 0]
+        chosen = scored[:max_datasets_per_hypothesis] if max_datasets_per_hypothesis else scored
         ranked.append({"hypothesis": h, "datasets": chosen})
 
     unique_ids = list(dict.fromkeys(
@@ -234,20 +241,18 @@ def _autopilot_field_selection(*, hypotheses, datasets, region, delay, instrumen
     if not unique_ids:
         return ranked
 
-    eff_region, eff_delay, eff_universe = brain.valid_combo(instrument, region, delay, "TOP3000")
-    df, _ = brain.fetch_fields(unique_ids, eff_region, eff_universe, eff_delay, instrument, "ALL", "")
-    rows = []
-    if df is not None and not getattr(df, "empty", True):
-        rows = brain._json_safe(df.to_dict(orient="records"))
+    rows = knowledge_service.catalogue_fields(unique_ids, region, delay)
+    category_by_dataset = {str(d.get("id")): d.get("category", "") for d in datasets}
 
     for r in ranked:
         q = f"{r['hypothesis'].get('idea','')} {r['hypothesis'].get('mechanism','')}"
         dsids = {d.get("id") for d in r["datasets"]}
-        fs = [f for f in rows if f.get("dataset_id") in dsids]
-        fs.sort(key=lambda f: _catalogue_score(q, f), reverse=True)
-        r["fields"] = fs[:max_fields_per_hypothesis]
+        scored_f = [(f, _catalogue_score(q, f)) for f in rows if f.get("dataset_id") in dsids]
+        fs = [f for f, s in sorted(scored_f, key=lambda x: x[1], reverse=True) if s > 0]
+        r["fields"] = fs[:max_fields_per_hypothesis] if max_fields_per_hypothesis else fs
         for f in r["fields"]:
             f["catalogue_score"] = round(_catalogue_score(q, f), 4)
+            f["category_id"] = category_by_dataset.get(str(f.get("dataset_id")), "")
     return ranked
 
 
@@ -302,8 +307,9 @@ def run_autopilot(*, category, region, delay, instrument, goal, paper_text, pape
                    n, max_operators, progress) -> dict:
     """
     Autonomous path:
-      hypothesis discovery -> complete BRAIN dataset scan -> per-hypothesis dataset/field ranking
-      -> expression generation -> strict validation.
+      hypothesis discovery -> local catalogue scan (datasets + fields already ingested by Data
+      Explorer, never BRAIN directly) -> per-hypothesis dataset/field ranking -> expression
+      generation -> strict validation.
 
     This deliberately leaves the existing manual Research Lab path untouched.
     """
@@ -323,10 +329,16 @@ def run_autopilot(*, category, region, delay, instrument, goal, paper_text, pape
     if not hypotheses:
         raise RuntimeError("Research produced no hypotheses. The report could not be converted into testable mechanisms.")
 
-    progress(message=f"autopilot: scanning BRAIN datasets for {len(hypotheses)} hypotheses…")
+    progress(message=f"autopilot: scanning the local dataset catalogue for {len(hypotheses)} hypotheses…")
     eff_region, eff_delay, eff_universe = brain.valid_combo(instrument, region, delay, "TOP3000")
-    datasets = brain.get_datasets(eff_region, eff_universe, eff_delay, instrument)
-    datasets = brain._json_safe(datasets or [])
+    from app.knowledge import service as knowledge_service
+    datasets = knowledge_service.catalogue_datasets(eff_region, eff_delay, instrument, eff_universe)
+    if not datasets:
+        raise RuntimeError(
+            f"No datasets catalogued yet for {eff_region} D{eff_delay} {eff_universe}. "
+            "Fetch datasets for this region/delay/universe in Data Explorer first — Autopilot only "
+            "reads from the local catalogue, it never queries BRAIN directly."
+        )
     ranked = _autopilot_field_selection(
         hypotheses=hypotheses, datasets=datasets, region=eff_region, delay=eff_delay,
         instrument=instrument, progress=progress
@@ -335,8 +347,8 @@ def run_autopilot(*, category, region, delay, instrument, goal, paper_text, pape
     total_fields = sum(len(r.get("fields", [])) for r in ranked)
     if not total_fields:
         raise RuntimeError(
-            f"BRAIN returned {len(datasets)} datasets, but no verified fields matched the hypotheses "
-            f"for {eff_region}/D{eff_delay}."
+            f"The local catalogue has {len(datasets)} dataset(s) for {eff_region}/D{eff_delay}, but no "
+            "fields — fetch datasets in Data Explorer (which now catalogues their fields too), then retry."
         )
 
     progress(message=f"autopilot: {total_fields} verified hypothesis-specific fields selected; generating expressions…")

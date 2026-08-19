@@ -196,8 +196,9 @@ def suggest(kind, region, delay, instrument, universe, n, own, progress) -> dict
     if kind == "selection":
         cats = []
         try:
-            df = engine.get_datasets(region=region, universe=universe, delay=delay, instrument_type=instrument)
-            cats = sorted({str(r.get("category_id")) for r in df if r.get("category_id")})
+            from app.knowledge import service as knowledge_service
+            rows = knowledge_service.catalogue_datasets(region, delay, instrument, universe)
+            cats = sorted({str(r.get("category")) for r in rows if r.get("category")})
         except Exception:
             pass
         op_summary = wqb_llm._build_operator_summary(_scoped_ops("SELECTION"))
