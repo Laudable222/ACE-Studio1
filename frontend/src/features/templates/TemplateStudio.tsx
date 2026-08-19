@@ -39,6 +39,7 @@ export function TemplateStudio() {
   const [maxOps, setMaxOps] = usePersistentState("tpl:maxops", 4);
   const [field2Src, setField2Src] = usePersistentState("tpl:field2src", "same");   // same | <datasetId> | custom
   const [customFields, setCustomFields] = usePersistentState("tpl:customfields", "");
+  const [idea, setIdea] = usePersistentState("tpl:idea", "");   // used by Suggest From Data when no fields are selected — the LLM picks the catalogue fields itself
   const [out, setOut] = usePersistentState<any | null>("tpl:out", null);
 
   const [ops, setOps] = useState<Op[]>([]);
@@ -150,13 +151,13 @@ export function TemplateStudio() {
   }
 
   async function suggest() {
-    if (!selFields.length) return toast("Select datafields first.", "warn");
+    if (!selFields.length && !idea.trim()) return toast("Select datafields, or describe the idea below so the LLM can pick the data itself.", "warn");
     setBusyS(true);
     const start = await api.post<any>("/generate/templates/suggest", {
       region: R.ctx.region, delay: R.ctx.delay, instrument: R.ctx.instrument, universe: R.ctx.universe,
       dataset_names: R.datasets.filter((d) => R.selDatasets.includes(d.id)).map((d) => d.name || d.id),
       fields: selFields.map((f) => ({ id: f.id, type: f.type, description: f.description })),
-      categories: fieldCats, max_operators: maxOps, n: 8, multi_field: multi,
+      categories: fieldCats, max_operators: maxOps, n: 8, multi_field: multi, idea,
     });
     if (start.error || !start.job_id) { setBusyS(false); return toastErr(start.error || "Could not start."); }
     let s: any = {};
@@ -245,6 +246,9 @@ export function TemplateStudio() {
             {VEC.map((v) => <span key={v} className={"pill" + (vecOps.includes(v) ? " on" : "")}
               onClick={() => setVecOps((x) => x.includes(v) ? x.filter((y) => y !== v) : [...x, v])}>{v}</span>)}
           </div>
+
+          {!selFields.length ? <label className="fld" style={{ marginTop: 10 }}><span>Idea (No Fields Selected — The LLM Picks The Data)</span>
+            <input value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="e.g. earnings surprise momentum that fades within a week" /></label> : null}
 
           <div className="dx-filters" style={{ marginTop: 12 }}>
             <button className="btn" onClick={expand} disabled={busy || busyS}>

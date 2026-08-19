@@ -537,3 +537,43 @@ def memory_prompt_context(query: str, region: str = "", fields: list | None = No
         scope=" | ".join(v for v in [x.get("region"),x.get("dataset"),x.get("field"),x.get("operator")] if v)
         lines.append(f"- {x.get('title','Untitled')} [{x.get('type','tip')}; confidence={x.get('confidence','unverified')}{'; '+scope if scope else ''}]: {x.get('content','')}")
     return "\n".join(lines)
+
+
+def auto_select_fields(query: str, region: str, delay: int, instrument: str = "", universe: str = "",
+                       max_datasets: int | None = None, max_fields: int | None = None):
+    """Score the local catalogue against a free-text idea/instruction and pick the fields that
+    best fit it — no manual Data Explorer selection required. Same relevance-gated (score > 0),
+    uncapped-by-default approach Autopilot uses for a list of hypotheses, just driven by one
+    prompt string instead. Returns (fields, categories, dataset_names) ready to hand straight
+    to run_generation()/suggest_templates().
+
+    The scorer itself (_catalogue_score) lives in app.research.service — imported here lazily
+    to avoid a module-load-order issue, since research.service already imports this module at
+    call time for the same reason in the other direction (Autopilot's own field selection).
+    """
+    from app.research.service import _catalogue_score
+
+    datasets = catalogue_datasets(region, delay, instrument, universe)
+    if not datasets:
+        return [], {}, []
+    scored = [(d, _catalogue_score(query, d)) for d in datasets]
+    chosen = [d for d, s in sorted(scored, key=lambda x: x[1], reverse=True) if s > 0]
+    if max_datasets:
+        chosen = chosen[:max_datasets]
+    if not chosen:
+        return [], {}, []
+
+    ids = [d["id"] for d in chosen]
+    rows = catalogue_fields(ids, region, delay)
+    scored_f = [(f, _catalogue_score(query, f)) for f in rows]
+    fields = [f for f, s in sorted(scored_f, key=lambda x: x[1], reverse=True) if s > 0]
+    if max_fields:
+        fields = fields[:max_fields]
+    if not fields:
+        return [], {}, []
+
+    category_by_dataset = {d["id"]: d.get("category", "") for d in chosen}
+    categories = {f["id"]: category_by_dataset.get(f.get("dataset_id"), "") for f in fields}
+    used_ds_ids = {f.get("dataset_id") for f in fields}
+    dataset_names = [d.get("name") or d["id"] for d in chosen if d["id"] in used_ds_ids]
+    return fields, categories, dataset_names

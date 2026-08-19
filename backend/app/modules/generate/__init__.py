@@ -32,14 +32,28 @@ class GenReq(BaseModel):
 
 @router.post("/run")
 def run(req: GenReq):
-    if not req.fields:
-        raise HTTPException(400, "Select datafields first — generation is grounded in your data.")
+    if not req.fields and not req.prompt.strip():
+        raise HTTPException(400, "Select datafields, or describe the idea you want tested so the LLM can pick the data itself.")
 
     def task(progress, should_cancel):
+        fields, categories, dataset_names = req.fields, req.categories, req.dataset_names
+        if not fields:
+            # No manual selection — score the local catalogue against the instruction itself and
+            # pick the fields, the same way Autopilot grounds each hypothesis. Never queries BRAIN.
+            from app.knowledge import service as knowledge_service
+            progress(message="no fields selected — scoring the local catalogue against your instruction…")
+            fields, categories, dataset_names = knowledge_service.auto_select_fields(
+                query=req.prompt, region=req.region, delay=req.delay, instrument=req.instrument, universe=req.universe)
+            if not fields:
+                raise RuntimeError(
+                    f"No catalogued fields for {req.region} D{req.delay} {req.universe} matched your instruction. "
+                    "Fetch datasets for this region/delay in Data Explorer (it catalogues their fields too), "
+                    "or select fields manually.")
+            progress(message=f"auto-selected {len(fields)} field(s) across {len(dataset_names)} dataset(s) — generating…")
         return service.run_generation(
             mode=req.mode, prompt=req.prompt, region=req.region, delay=req.delay,
-            instrument=req.instrument, universe=req.universe, dataset_names=req.dataset_names,
-            fields=req.fields, categories=req.categories, max_operators=req.max_operators,
+            instrument=req.instrument, universe=req.universe, dataset_names=dataset_names,
+            fields=fields, categories=categories, max_operators=req.max_operators,
             n=req.n, repair_rounds=req.repair_rounds, region_note=req.region_note,
             raw_prompt=req.raw_prompt, progress=progress)
 
@@ -119,14 +133,29 @@ class TemplateSuggestReq(BaseModel):
     max_operators: int = 4
     n: int = 6
     multi_field: bool = False
+    idea: str = ""   # used to auto-select fields from the catalogue when none are given below
 
 
 @router.post("/templates/suggest")
 def templates_suggest(req: TemplateSuggestReq):
+    if not req.fields and not req.idea.strip():
+        raise HTTPException(400, "Select datafields, or describe the idea so the LLM can pick the data itself.")
+
     def task(progress, should_cancel):
+        fields, categories, dataset_names = req.fields, req.categories, req.dataset_names
+        if not fields:
+            from app.knowledge import service as knowledge_service
+            progress(message="no fields selected — scoring the local catalogue against your idea…")
+            fields, categories, dataset_names = knowledge_service.auto_select_fields(
+                query=req.idea, region=req.region, delay=req.delay, instrument=req.instrument, universe=req.universe)
+            if not fields:
+                raise RuntimeError(
+                    f"No catalogued fields for {req.region} D{req.delay} {req.universe} matched your idea. "
+                    "Fetch datasets for this region/delay in Data Explorer, or select fields manually.")
+            progress(message=f"auto-selected {len(fields)} field(s) across {len(dataset_names)} dataset(s)")
         return service.suggest_templates(region=req.region, delay=req.delay, instrument=req.instrument,
-                                         universe=req.universe, dataset_names=req.dataset_names,
-                                         fields=req.fields, categories=req.categories,
+                                         universe=req.universe, dataset_names=dataset_names,
+                                         fields=fields, categories=categories,
                                          max_operators=req.max_operators, n=req.n,
                                          multi_field=req.multi_field, progress=progress)
     return {"job_id": jobs.submit("templates", task)}

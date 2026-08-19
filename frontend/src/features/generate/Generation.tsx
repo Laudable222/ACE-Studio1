@@ -61,7 +61,7 @@ export function Generation() {
   const fieldPayload = () => selFields.map((f) => ({ id: f.id, type: f.type, description: f.description, dataset_id: f.dataset_id }));
 
   async function autoRewrite() {
-    if (!selFields.length) return toast("Select datafields in the Data Explorer first.", "warn");
+    if (!selFields.length && !prompt.trim()) return toast("Select datafields, or describe the idea so the LLM can pick the data itself.", "warn");
     setRewriteBusy(true);
     const start = await api.post<any>("/generate/rewrite", {
       prompt, region: R.ctx.region, delay: R.ctx.delay, instrument: R.ctx.instrument, universe: R.ctx.universe,
@@ -75,7 +75,7 @@ export function Generation() {
   }
 
   async function run() {
-    if (!selFields.length) return toast("Select datafields in the Data Explorer first.", "warn");
+    if (!selFields.length && !prompt.trim()) return toast("Select datafields, or describe the idea you want tested so the LLM can pick the data itself.", "warn");
     if (missingDs.length) return toast(`Fetch the required dataset(s) first: ${missingDs.join(", ")}.`, "warn");
     setBusy(true); setValid([]); setRejected([]);
     const start = await api.post<{ job_id: string; error?: string }>("/generate/run", {
@@ -104,7 +104,7 @@ export function Generation() {
 
         <label className="fld"><span>Instruction (Optional — Research Lab Pushes Land Here)</span>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} style={{ minHeight: 90 }}
-            placeholder="Describe the economic ideas to explore, or leave blank for grounded auto-generation." /></label>
+            placeholder={selFields.length ? "Describe the economic ideas to explore, or leave blank for grounded auto-generation." : "No fields selected — describe the idea here and the LLM will pick the catalogued data itself."} /></label>
 
         {libPrompts.length > 0 &&
           <div className="dx-filters wrap" style={{ marginTop: 8 }}>
@@ -152,7 +152,7 @@ export function Generation() {
           </div>
         ) : null}
         <div className="panel-scroll">
-          {!valid.length && !rejected.length ? <div className="empty">Pick fields, choose a mode, and Generate. Single-field extracts signal from one field every way; multi-field combines up to two categories.</div> :
+          {!valid.length && !rejected.length ? <div className="empty">Pick fields and Generate, or leave fields empty and describe an idea in the instruction box — the LLM will pick the catalogued data itself. Single-field extracts signal from one field every way; multi-field combines up to two categories.</div> :
             <>
               {valid.map((e, i) => <code key={i} style={{ display: "block", padding: "6px 8px", borderBottom: "1px solid var(--line)" }}>{e}</code>)}
               {rejected.length > 0 && <>
