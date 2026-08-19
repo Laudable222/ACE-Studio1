@@ -16,7 +16,7 @@ export function AlphaEvolution(){
   async function simulateVariant(id:number){ setBusy(true); const d=await api.post<any>("/evolution/simulate-variant",{variant_id:id}); setBusy(false); if(d.error)return toastErr(d.error); toast(`Simulation queued (job ${d.job_id}).`,"ok"); await load(); }
   async function close(){ if(!selected)return; const reason=window.prompt("Why close this research branch?", "No promising variants remain.")||""; const d=await api.post<any>("/evolution/close",{family_id:selected.id,reason}); if(d.error)return toastErr(d.error); setSelected(d); await load(); }
   async function abandon(id:number){ const reason=window.prompt("Why abandon this variant?", "Not worth further testing.")||""; const d=await api.post<any>("/evolution/abandon",{variant_id:id,reason}); if(d.error)return toastErr(d.error); await load(); }
-  return <div style={{display:"flex",flexDirection:"column",gap:12,flex:1,minHeight:0}}>
+  return <div className="dx-stack">
     <div className="panel" style={{padding:14}}><div className="dx-head"><b>Alpha Evolution Engine</b><span className="mut">failure → diagnosis → controlled mutation → simulation → comparison</span></div>
       <div className="mut" style={{fontSize:12,margin:"6px 0 10px"}}>Failed alphas are preserved as research lineage. ACE changes one dimension at a time where possible. It never auto-submits.</div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}><input placeholder="Failed BRAIN alpha ID, e.g. 123456" value={alpha} onChange={e=>setAlpha(e.target.value)} style={{flex:1}}/><button className="btn ghost sm" onClick={diagnose} disabled={busy}>Diagnose</button><button className="btn sm" onClick={start} disabled={busy}>Start evolution</button></div>

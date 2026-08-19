@@ -59,6 +59,12 @@ button { font-family: inherit; }
 }
 .panel-scroll { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; }
 
+/* The counterpart to .dx-split's two-panel layout: a single column of stacked full-width
+   sections (stat grids, forms, lists). Unlike .panel, none of those sections are individually
+   height-bounded, so the WRAPPER itself needs to scroll once their combined height exceeds
+   the viewport — otherwise the shell's outer overflow:hidden just clips whatever doesn't fit. */
+.dx-stack { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
 /* Long expressions / ids wrap instead of forcing a horizontal scrollbar inside a panel. */
 .panel code, td code, .panel-scroll code { overflow-wrap: anywhere; word-break: break-word; }
 td { word-break: break-word; }

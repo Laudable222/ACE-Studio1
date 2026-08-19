@@ -154,7 +154,7 @@ export function ResultsAnalytics() {
   const maxFit = Math.max(1, ...insights.map((i) => i.avg_fitness));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
+    <div className="dx-stack">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
         {[
           { l: "Success rate", v: `${Math.round(rate.success_rate * 100)}%` },

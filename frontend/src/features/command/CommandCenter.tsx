@@ -31,7 +31,7 @@ export function CommandCenter() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1, minHeight: 0 }}>
+    <div className="dx-stack" style={{ gap: 14 }}>
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontSize: 17, fontWeight: 600 }}>Command Center</div>
         <div className="mut" style={{ marginTop: 4 }}>

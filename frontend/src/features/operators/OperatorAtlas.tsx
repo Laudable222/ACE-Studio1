@@ -78,7 +78,7 @@ export function OperatorAtlas() {
   const edited = ops.filter((o) => o.user_edited).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
+    <div className="dx-stack">
       <div className="panel" style={{ padding: 14 }}>
         <div className="dx-head">
           <b>Operator Lab</b>

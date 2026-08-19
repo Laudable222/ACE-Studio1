@@ -92,7 +92,7 @@ export function SubmissionManager() {
   const barPct = status ? Math.min(100, (status.submitted_today / Math.max(1, status.daily_limit)) * 100) : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
+    <div className="dx-stack">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
         <div className="panel" style={{ padding: 12 }}>
           <div className="mut" style={{ fontSize: 11, textTransform: "uppercase" }}>Today's submissions</div>

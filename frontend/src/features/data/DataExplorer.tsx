@@ -65,7 +65,7 @@ export function DataExplorer(){
  }
  function toggle(id:string){const n=selected.includes(id)?selected.filter(x=>x!==id):[...selected,id];setSelected(n);fetchFields(n)}
  const shown=useMemo(()=>datasets.filter(x=>!search||`${x.id} ${x.name||""} ${x.category_name||x.category_id||""}`.toLowerCase().includes(search.toLowerCase())),[datasets,search]);
- return <div style={{display:"flex",flexDirection:"column",gap:12,flex:1,minHeight:0}}>
+ return <div className="dx-stack">
   <div className="panel" style={{padding:14}}><div className="dx-head"><b>BRAIN Data Catalogue</b><span className="mut">Only datasets and fields verified from BRAIN are fed into ACE research.</span></div>
    <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}><input value={region} onChange={e=>setRegion(e.target.value.toUpperCase())} placeholder="Region" style={{width:100}}/><input type="number" value={delay} onChange={e=>setDelay(Number(e.target.value))} style={{width:80}}/><input value={universe} onChange={e=>setUniverse(e.target.value)} style={{width:130}}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search dataset" style={{flex:1,minWidth:180}}/><button className="btn sm" onClick={fetchDs} disabled={loading}>{loading?"Fetching…":"Fetch datasets"}</button></div>
    <div className="mut" style={{fontSize:11,marginTop:7}}>{loading&&loadingMsg?loadingMsg:`Session: ${status?.ready?"connected":"not connected"}. ${datasets.length} dataset(s), ${fields.length} field(s) in the current research context.`}</div></div>
