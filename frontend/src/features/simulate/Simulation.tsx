@@ -20,6 +20,8 @@ export function Simulation() {
 
   const [expr, setExpr] = usePersistentState("sim:expr", (R.pending || []).join("\n"));
   const [expOrigin, setExpOrigin] = usePersistentState<number | null>("sim:exporigin", null);   // Experiment id the CURRENT unedited expr text came from, if any
+  const [expExperiment, setExpExperiment] = useState<any>(null);   // that experiment's hypothesis/fields, fetched for display
+  const [showExpFields, setShowExpFields] = useState(false);
   const [unis, setUnis] = usePersistentState<string[]>("sim:unis", [R.ctx.universe]);
   const [neuts, setNeuts] = usePersistentState<string[]>("sim:neuts", ["INDUSTRY"]);
   const [decay, setDecay] = usePersistentState("sim:decay", 4);
@@ -69,6 +71,19 @@ export function Simulation() {
     const key = (R.pending || []).join("\n");
     if (key && key !== lastPending.current) { lastPending.current = key; setExpr(key); setExpOrigin(R.pendingExperimentId ?? null); }
   }, [R.pending]);
+
+  // While a batch is linked to an experiment (see expOrigin above), pull its hypothesis and
+  // mapped fields so you can see exactly what you're about to run without leaving this screen.
+  useEffect(() => {
+    if (!expOrigin) { setExpExperiment(null); return; }
+    setShowExpFields(false);
+    let cancelled = false;
+    api.get<any>("/discovery/experiments").then((d) => {
+      if (cancelled) return;
+      setExpExperiment((d.experiments || []).find((e: any) => e.id === expOrigin) || null);
+    });
+    return () => { cancelled = true; };
+  }, [expOrigin]);
 
   // Keep chosen universes valid for the current region without wiping the user's selection:
   // drop any that no longer exist; if none remain, fall back to the context universe.
@@ -220,6 +235,16 @@ export function Simulation() {
           {busy ? <span className="badge ok" style={{ marginLeft: "auto" }}>running</span> : null}</div>
         <label className="fld"><span>Expressions (One Per Line — From Generation){expOrigin ? <span className="badge ok" style={{ marginLeft: 6 }}>linked to experiment #{expOrigin}</span> : null}</span>
           <textarea value={expr} onChange={(e) => { setExpr(e.target.value); setExpOrigin(null); }} style={{ minHeight: 92 }} /></label>
+
+        {expExperiment ? <div className="mut" style={{ fontSize: 11, marginTop: 6, padding: 8, background: "var(--surface-2)", borderRadius: 7 }}>
+          <div style={{ color: "var(--fg)", fontSize: 12 }}>{expExperiment.hypothesis?.statement || expExperiment.name}</div>
+          {expExperiment.hypothesis?.mechanism ? <div style={{ marginTop: 3 }}>{expExperiment.hypothesis.mechanism}</div> : null}
+          <div style={{ marginTop: 4, cursor: expExperiment.field_ids?.length ? "pointer" : "default", textDecoration: expExperiment.field_ids?.length ? "underline" : "none" }}
+            onClick={() => expExperiment.field_ids?.length && setShowExpFields((v) => !v)}>
+            {showExpFields ? "▾" : "▸"} {expExperiment.field_ids?.length || 0} field{expExperiment.field_ids?.length === 1 ? "" : "s"} mapped to this hypothesis</div>
+          {showExpFields ? (expExperiment.field_ids || []).map((f: any, i: number) =>
+            <div key={i} style={{ padding: "1px 0" }}><code>{typeof f === "string" ? f : f.id}</code>{typeof f !== "string" && f.dataset_id ? <> — {f.dataset_id}</> : null}</div>) : null}
+        </div> : null}
 
         <label style={{ fontSize: 11, color: "var(--mut)", marginTop: 8, display: "block" }}>Universes</label>
         <div className="dx-filters wrap">{universes.map((u) =>
