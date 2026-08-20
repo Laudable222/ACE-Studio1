@@ -266,7 +266,7 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
                     fi.successful_operators_json=json.dumps(sorted(ops))
                 if not ok_gate:
                     db.add(M.ResearchFailure(expression=expr, region=region, reason=(reasons[0] if reasons else "gate failure"),
-                                             details_json=json.dumps({"reasons":reasons,"sharpe":sharpe,"fitness":fitness,"turnover":turn}), experiment_id=0))
+                                             details_json=json.dumps({"reasons":reasons,"sharpe":sharpe,"fitness":fitness,"turnover":turn}), experiment_id=int(experiment_id or 0)))
                 db.add(M.SimResult(alpha_id=aid or "", expression=expr, region=region, delay=delay,
                                    universe=settings.get("universe", ""), neutralization=settings.get("neutralization", ""),
                                    sharpe=sharpe, fitness=fitness, turnover=turn, returns=returns,

@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { useResearch } from "../../lib/store";
 import { useToast } from "../../lib/toast";
 
 type Variant = { id:number; generation:number; mutation_type:string; label:string; expression:string; settings:any; reason:string; status:string; alpha_id:string; fitness:number|null; sharpe:number|null; turnover:number|null; parent_variant_id:number; execution_key?:string; };
 type Family = { id:number; name:string; status:string; region:string; parent_alpha_id:string; generation:number; variant_budget:number; variants_created:number; variants_passed:number; variants_failed:number; variants:Variant[]; hypothesis:any; notes:string; };
 
 export function AlphaEvolution(){
-  const {toast,toastErr}=useToast();
+  const {toast,toastErr}=useToast(); const R=useResearch();
   const [families,setFamilies]=useState<Family[]>([]); const [alpha,setAlpha]=useState(""); const [selected,setSelected]=useState<Family|null>(null); const [busy,setBusy]=useState(false); const [diag,setDiag]=useState<any>(null);
-  async function load(){ const d=await api.get<{families:Family[]}>("/evolution/families"); if(d.error)return toastErr(d.error); const fs=d.families||[]; setFamilies(fs); if(selected){const f=fs.find(x=>x.id===selected.id); if(f)setSelected(f);} }
+  async function load(){
+    const d=await api.get<{families:Family[]}>("/evolution/families"); if(d.error)return toastErr(d.error); const fs=d.families||[]; setFamilies(fs);
+    if(R.pendingFamilyId){ const f=fs.find(x=>x.id===R.pendingFamilyId); if(f)setSelected(f); R.setPendingFamilyId(null); }
+    else if(selected){const f=fs.find(x=>x.id===selected.id); if(f)setSelected(f);}
+  }
   useEffect(()=>{load()},[]);
   async function diagnose(){ if(!alpha.trim())return; const d=await api.get<any>(`/evolution/diagnose/${encodeURIComponent(alpha.trim())}`); if(d.error)return toastErr(d.error); setDiag(d); }
   async function start(){ if(!alpha.trim())return toast("Enter the failed BRAIN alpha ID first.","warn"); setBusy(true); const d=await api.post<any>("/evolution/families",{alpha_id:alpha.trim(),budget:30}); setBusy(false); if(d.error)return toastErr(d.error); setSelected(d); await load(); toast("Alpha family created. The failed parent is preserved.","ok"); }

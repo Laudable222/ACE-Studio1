@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useResearch } from "../../lib/store";
 import { usePersistentState } from "../../lib/persist";
@@ -16,6 +17,7 @@ const num = (v: any) => (v == null ? "—" : (+v).toFixed(3));
 // reconnected on mount so its live progress reappears instead of vanishing.
 export function Simulation() {
   const R = useResearch();
+  const nav = useNavigate();
   const { toast, toastErr } = useToast();
 
   const [expr, setExpr] = usePersistentState("sim:expr", (R.pending || []).join("\n"));
@@ -132,6 +134,18 @@ export function Simulation() {
     if (!failed.length) return toast("No failed configs to retry.", "warn");
     setExpr(failed.join("\n"));
     run(failed);
+  }
+
+  const [evolveBusy, setEvolveBusy] = useState("");
+  async function evolveAlpha(alphaId: string) {
+    // create_family() is idempotent on an open family for the same parent alpha, so clicking
+    // this again for an already-evolving alpha just reopens it rather than duplicating.
+    setEvolveBusy(alphaId);
+    const d = await api.post<any>("/evolution/families", { alpha_id: alphaId, budget: 30 });
+    setEvolveBusy("");
+    if (d.error) return toastErr(d.error);
+    R.setPendingFamilyId(d.id);
+    nav("/evolution");
   }
 
   async function run(override?: string[]) {
@@ -310,7 +324,7 @@ export function Simulation() {
         <div className="panel-scroll">
           {!res ? <div className="empty">Run a simulation. Each alpha is judged against every gate metric; a green ✓ means it passed all of them.</div> :
             !res.results?.length ? <div className="empty">Nothing simulated (check the log / session).</div> :
-              <table><thead><tr><th></th><th>Alpha</th><th>Sharpe</th><th>Fit</th><th>Turn</th><th>Uni / Neut</th><th>Why Not</th></tr></thead>
+              <table><thead><tr><th></th><th>Alpha</th><th>Sharpe</th><th>Fit</th><th>Turn</th><th>Uni / Neut</th><th>Why Not</th><th></th></tr></thead>
                 <tbody>{res.results.map((r: any, i: number) => (
                   <tr key={i}>
                     <td>{r.passed ? <span style={{ color: "var(--ok)" }}>✓</span> : <span style={{ color: "var(--bad)" }}>✗</span>}</td>
@@ -319,6 +333,8 @@ export function Simulation() {
                     <td>{num(r.sharpe)}</td><td>{num(r.fitness)}</td><td>{r.turnover == null ? "—" : (r.turnover * 100).toFixed(0) + "%"}</td>
                     <td className="mut" style={{ fontSize: 11 }}>{r.universe}<br />{r.neutralization}</td>
                     <td className="mut" style={{ fontSize: 11 }}>{(r.reasons || []).join(", ")}</td>
+                    <td>{!r.passed && r.alpha_id ? <button className="btn ghost sm" title="Diagnose why it failed and propose controlled variants"
+                      onClick={() => evolveAlpha(r.alpha_id)} disabled={evolveBusy === r.alpha_id}>{evolveBusy === r.alpha_id ? <span className="spin" /> : "🧬 Evolve"}</button> : null}</td>
                   </tr>))}</tbody></table>}
 
           <div className="section" style={{ fontSize: 11, color: "var(--mut)", textTransform: "uppercase", letterSpacing: ".5px", marginTop: 14 }}>Cross-Region Sweep</div>

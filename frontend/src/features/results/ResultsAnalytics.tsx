@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useResearch } from "../../lib/store";
 import { useToast } from "../../lib/toast";
 
 const num = (v: any) => (v == null ? "—" : (+v).toFixed(3));
@@ -52,8 +53,10 @@ interface Insight { operator: string; count: number; avg_fitness: number; }
 export function ResultsAnalytics() {
   const { toast, toastErr } = useToast();
   const nav = useNavigate();
+  const R = useResearch();
   const [rows, setRows] = useState<Row[]>([]);
   const [busyReuse, setBusyReuse] = useState("");
+  const [busyEvolve, setBusyEvolve] = useState("");
   const [sel, setSel] = useState<Row | null>(null);
   const [pnl, setPnl] = useState<{ points: { date: string; pnl: number }[]; max_drawdown: number } | null>(null);
   const [yearly, setYearly] = useState<any[]>([]);
@@ -109,6 +112,19 @@ export function ResultsAnalytics() {
     localStorage.setItem("ace2:tpl:retry", JSON.stringify(d.datasets || []));
     toast(d.datasets?.length ? `Template ready — retry with dataset(s): ${d.datasets.join(", ")}.` : "Template ready in Template Studio.", "ok");
     nav("/templates");
+  }
+
+  // Diagnose why it failed and propose controlled, one-dimension-at-a-time variants (window,
+  // operators, neutralization…) instead of just discarding it. create_family() is idempotent on
+  // an already-open family for the same parent alpha, so clicking this again just reopens it.
+  async function evolve(r: Row) {
+    if (!r.alpha_id) return;
+    setBusyEvolve(r.alpha_id);
+    const d = await api.post<any>("/evolution/families", { alpha_id: r.alpha_id, budget: 30 });
+    setBusyEvolve("");
+    if (d.error) return toastErr(d.error);
+    R.setPendingFamilyId(d.id);
+    nav("/evolution");
   }
   const [rate, setRate] = useState<{ passed: number; total: number; success_rate: number }>({ passed: 0, total: 0, success_rate: 0 });
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -217,6 +233,11 @@ export function ResultsAnalytics() {
                         <button className="btn ghost sm" title="Has potential — reuse as a template with the same dataset"
                           onClick={() => reuse(r)} disabled={!!busyReuse} style={{ marginLeft: 4 }}>
                           {busyReuse === (r.alpha_id || r.expr) ? <span className="spin" /> : "⟳"}</button>
+                        : null}
+                      {!r.passed && r.alpha_id ?
+                        <button className="btn ghost sm" title="Diagnose why it failed and propose controlled variants"
+                          onClick={() => evolve(r)} disabled={!!busyEvolve} style={{ marginLeft: 4 }}>
+                          {busyEvolve === r.alpha_id ? <span className="spin" /> : "🧬"}</button>
                         : null}</td>
                   </tr>);})}</tbody></table>}
           </div>
