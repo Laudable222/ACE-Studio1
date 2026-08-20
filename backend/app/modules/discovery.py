@@ -139,6 +139,7 @@ class ExperimentGenerateReq(BaseModel):
     n:int=12
     max_operators:int=4
     repair_rounds:int=2
+    rounds:int=4   # extra generation rounds beyond the first, accumulating distinct new candidates; stops early once a round adds nothing new
 
 @router.post('/experiments/generate')
 def experiment_generate(req:ExperimentGenerateReq):
@@ -166,17 +167,32 @@ def experiment_generate(req:ExperimentGenerateReq):
             "Do not copy a formula from the research report. Construct multiple distinct expressions that test the same mechanism. "
             "Prefer structurally different constructions and avoid cosmetic duplicates.")
     def task(progress,should_cancel):
-        out=gen.run_generation(mode='multi',prompt=prompt,region=row.region,delay=row.delay,instrument='EQUITY',universe=row.universe,
-                               dataset_names=[],fields=fields,categories=categories,max_operators=req.max_operators,n=req.n,
-                               repair_rounds=req.repair_rounds,region_note='',progress=progress,raw_prompt=False)
+        from llm_providers import _canonical
+        with SessionLocal() as db:
+            existing=service._safe_json(db.get(M.Experiment,req.experiment_id).expression_json,[])
+        seen={_canonical(e) for e in existing}
+        new_valid=[]
+        rounds=max(1,min(6,req.rounds))
+        for i in range(rounds):
+            if should_cancel(): break
+            progress(message=f"generating candidates — round {i+1}/{rounds}…")
+            out=gen.run_generation(mode='multi',prompt=prompt,region=row.region,delay=row.delay,instrument='EQUITY',universe=row.universe,
+                                   dataset_names=[],fields=fields,categories=categories,max_operators=req.max_operators,n=req.n,
+                                   repair_rounds=req.repair_rounds,region_note='',progress=progress,raw_prompt=False)
+            round_new=[e for e in out.get('valid',[]) if _canonical(e) not in seen]
+            for e in round_new: seen.add(_canonical(e))
+            new_valid+=round_new
+            # A round that adds nothing new means the LLM is resampling the same territory —
+            # further rounds are unlikely to help, so stop rather than burning more calls.
+            if i>0 and not round_new: break
         with SessionLocal() as db:
             r=db.get(M.Experiment,req.experiment_id); exprs=service._safe_json(r.expression_json,[])
-            exprs=list(dict.fromkeys(exprs+out.get('valid',[]))); r.expression_json=json.dumps(exprs); r.status='generated'; db.commit()
-        for e in out.get('valid',[]):
+            exprs=list(dict.fromkeys(exprs+new_valid)); r.expression_json=json.dumps(exprs); r.status='generated'; db.commit()
+        for e in new_valid:
             try: service.save_dna(service.alpha_dna(e,row.region,categories))
             except Exception: pass
-        out['experiment_id']=req.experiment_id
-        return out
+        progress(message=f"{len(new_valid)} new candidate(s) across {min(rounds,i+1)} round(s)")
+        return {"valid":new_valid,"experiment_id":req.experiment_id}
     return {'job_id':jobs.submit('experiment-generation',task)}
 
 @router.get('/failures')

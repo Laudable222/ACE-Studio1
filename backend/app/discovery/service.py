@@ -270,9 +270,12 @@ def _research_llm_prompt(base: dict, *, recovery: bool = False, enrichment: bool
             "You are the enrichment stage of ACE Studio's quantitative research parser. The first pass extracted a sparse research map. "
             "Re-read the line-addressed report and the existing extraction below. Add only NEW, materially distinct findings, mechanisms, "
             "economic variables, and testable hypotheses supported by the source. Do not repeat existing items and do not invent facts. "
-            "Variables are economic concepts, not BRAIN field names. Hypotheses may be MODEL_INFERENCE only when the source supports "
-            "the underlying mechanism. Return ONLY one JSON object with keys findings, mechanisms, variables, hypotheses, conditions, "
-            "horizons, limitations. Aim to add useful coverage rather than forcing a fixed count.\n\nEXISTING EXTRACTION:\n" +
+            "Variables are economic concepts, not BRAIN field names. Prioritise MODEL_INFERENCE hypotheses this pass: for each existing "
+            "mechanism/finding, ask what else would have to be true if it's real that the authors never framed as a hypothesis — a "
+            "different horizon, a control variable mentioned in passing, an unstated implication, an interaction between two mechanisms "
+            "covered separately. Tag these MODEL_INFERENCE with honest (lower) confidence. Return ONLY one JSON object with keys findings, "
+            "mechanisms, variables, hypotheses, conditions, horizons, limitations. Aim to add useful coverage rather than forcing a fixed "
+            "count.\n\nEXISTING EXTRACTION:\n" +
             json.dumps(base, ensure_ascii=False)[:80000] +
             "\n\nLINE-ADDRESSED REPORT:\n" + json.dumps(parser, ensure_ascii=False)[:160000]
         )
@@ -285,6 +288,15 @@ def _research_llm_prompt(base: dict, *, recovery: bool = False, enrichment: bool
         "Extract breadth before deduplicating: preserve separate mechanisms, conditional effects, horizons, and measurable variables when "
         "the report treats them as distinct. Aim for 10-60 useful findings, 10-50 mechanisms, 15-100 variables, and 8-30 distinct, "
         "testable hypotheses when supported by the report. Do not manufacture items just to hit a count.\n\n"
+        "MOST OF THE VALUE IS IN WHAT THE REPORT DOESN'T SAY OUTRIGHT. Most reports state one or two headline hypotheses "
+        "explicitly; do not stop there. For every mechanism and finding you extract, actively ask: what ELSE would have to be "
+        "true if this mechanism is real, that the authors never framed as a hypothesis themselves? Look for: (a) the mechanism "
+        "applied to a different horizon, conditioning variable, or subsample than the one the authors tested; (b) a secondary or "
+        "control variable the report mentions in passing that plausibly drives its own testable effect; (c) an implication of a "
+        "stated finding that the authors describe but never explicitly convert into a hypothesis; (d) an interaction between two "
+        "mechanisms the report discusses separately. Tag every one of these MODEL_INFERENCE and set confidence honestly below what "
+        "you'd give a SOURCE_SUPPORTED item — but include them; a report that yields only its explicit hypotheses has been "
+        "under-mined, not fully analysed.\n\n"
         "EXACT JSON SHAPE:\n"
         '{"title":"...","research_question":"...","findings":[{"text":"...","evidence":"SOURCE_SUPPORTED","source_lines":[1]}],'
         '"mechanisms":[{"name":"...","explanation":"...","evidence":"SOURCE_SUPPORTED","source_lines":[1]}],'
