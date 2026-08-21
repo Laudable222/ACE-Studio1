@@ -94,6 +94,36 @@ def _credit_usage(region: str, operators: list, fields: list, fitness: float) ->
         db.commit()
 
 
+def _wait_for_live_session(progress, should_cancel, timeout_s=3600, poll_every=20):
+    """Block until the BRAIN session is valid again, cancelled, or timed out.
+
+    BRAIN's own client silently degrades a dead-session poll into "this alpha didn't
+    complete" rather than raising — there's nothing to catch mid-batch. This is checked
+    proactively at phase boundaries instead: if the session is already dead, pause and wait
+    for the user to log back in via Settings (session.pkl is a shared, process-wide singleton,
+    so a login from any other request is picked up here automatically) rather than ploughing
+    on and burning an entire phase against a session that can only keep failing.
+
+    Returns the refreshed session on recovery, or None if cancelled/timed out without one.
+    """
+    status = engine.session_status()
+    if status.get("ok"):
+        return engine.require_session()
+    progress(message="BRAIN session expired — log back in via Settings to continue; waiting…",
+             log="SESSION EXPIRED — pausing for re-login")
+    waited = 0
+    while waited < timeout_s:
+        if should_cancel():
+            return None
+        time.sleep(poll_every)
+        waited += poll_every
+        if engine.session_status().get("ok"):
+            progress(message="session restored — resuming…", log="session restored, resuming")
+            return engine.require_session()
+    progress(log=f"gave up waiting for re-login after {timeout_s // 60} minutes")
+    return None
+
+
 def run_simulation(*, expressions, region, delay, universes, neutralizations, decay, truncation,
                    test_period, pasteurization, unit_handling, nan_handling, max_trade, visualization,
                    concurrency, limit_of_multi, max_turnover, min_sharpe, min_fitness, max_corr,
@@ -145,9 +175,36 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
             progress(done=done, log=f"+{len(res)} simulated ({done}/{len(alpha_list)})")
 
     ok = [x for x in flat if x.get("alpha_id")]
+    missing = len(alpha_list) - len(ok)
+    stopped_early = None
+    if missing and not cancelled and not engine.session_status().get("ok"):
+        # Configs that never got a result AND the session is currently dead — very likely the
+        # same cause (see _wait_for_live_session's docstring), so pause here instead of treating
+        # this as a normal partial-failure batch.
+        fresh = _wait_for_live_session(progress, should_cancel)
+        if fresh is not None:
+            s = fresh
+        else:
+            stopped_early = (f"BRAIN session expired mid-run and no re-login arrived in time. "
+                             f"{len(ok)}/{len(alpha_list)} config(s) completed before this happened — "
+                             f"the other {missing} are NOT in the results below (they never got an alpha id); "
+                             f"compare against your original expression list and re-run those once logged back in.")
     if not ok:
         return {"configs": len(alpha_list), "simulated": 0, "passed": 0, "cancelled": cancelled,
-                "errors": errors[:20], "results": []}
+                "errors": errors[:20], "results": [], "stopped_early": stopped_early}
+
+    if stopped_early is None and not engine.session_status().get("ok"):
+        # Submission fully succeeded but the session died in the gap before stats-fetch (or was
+        # already dying near the end) — same pause-and-wait before burning the next phase too.
+        fresh = _wait_for_live_session(progress, should_cancel)
+        if fresh is not None:
+            s = fresh
+        else:
+            stopped_early = (f"BRAIN session expired before fetching results and no re-login arrived in time. "
+                             f"{len(ok)} alpha(s) were submitted but their stats couldn't be fetched — "
+                             f"log back in and re-run to pick them up.")
+            return {"configs": len(alpha_list), "simulated": 0, "passed": 0, "cancelled": cancelled,
+                    "errors": errors[:20], "results": [], "stopped_early": stopped_early}
 
     sim_cfg = {"get_pnl": get_pnl, "get_stats": get_stats, "check_submission": check_submission,
                "check_self_corr": check_submission, "check_prod_corr": check_submission}
@@ -313,10 +370,11 @@ def run_simulation(*, expressions, region, delay, universes, neutralizations, de
                      "reasons": reasons, "tag": tag_used})
 
     rows.sort(key=lambda x: (-(x["passed"]), -(abs(x["fitness"]) if x["fitness"] is not None else 0)))
-    progress(log=f"done: {len(rows)} simulated · {passed} passed the gate · {tagged} tagged")
+    progress(log=f"done: {len(rows)} simulated · {passed} passed the gate · {tagged} tagged"
+                 + (f" · {missing} never completed (session interruption)" if missing else ""))
     return {"configs": len(alpha_list), "simulated": len(rows), "passed": passed, "tagged": tagged,
             "cancelled": cancelled, "errors": errors[:20], "thresholds": {"sharpe": thr_sharpe, "fitness": thr_fit},
-            "results": rows}
+            "results": rows, "stopped_early": stopped_early}
 
 
 def run_cross_region_sweep(*, expressions, regions, delay, instrument, neutralizations, decay,

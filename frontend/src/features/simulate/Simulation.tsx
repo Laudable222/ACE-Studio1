@@ -125,7 +125,8 @@ export function Simulation() {
     if (s.status === "error") return toastErr(s.error);
     if (!s.result) return;   // job vanished; nothing to show
     setRes(s.result);
-    if (s.result.passed) toast(`${s.result.passed} of ${s.result.simulated} passed the gate · ${s.result.tagged || 0} tagged.`, "ok");
+    if (s.result.stopped_early) toast(s.result.stopped_early, "warn");
+    else if (s.result.passed) toast(`${s.result.passed} of ${s.result.simulated} passed the gate · ${s.result.tagged || 0} tagged.`, "ok");
     else toast(`${s.result.simulated} simulated · none passed the gate yet.`, "warn");
   }
 
@@ -321,6 +322,8 @@ export function Simulation() {
           {res && res.results?.some((r: any) => !r.passed) ?
             <button className="btn ghost sm" style={{ marginLeft: "auto" }} onClick={retryFailed} disabled={busy}>
               Retry {[...new Set(res.results.filter((r: any) => !r.passed).map((r: any) => r.expr))].length} failed</button> : null}</div>
+        {res?.stopped_early ? <div className="mut" style={{ fontSize: 11, padding: 8, margin: "8px 0", background: "var(--bad-weak)", color: "var(--bad)", borderRadius: 7 }}>
+          ⚠ {res.stopped_early}</div> : null}
         <div className="panel-scroll">
           {!res ? <div className="empty">Run a simulation. Each alpha is judged against every gate metric; a green ✓ means it passed all of them.</div> :
             !res.results?.length ? <div className="empty">Nothing simulated (check the log / session).</div> :
