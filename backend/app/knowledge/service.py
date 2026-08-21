@@ -494,6 +494,12 @@ def add_memory(item_type,title,content,region="",dataset="",field="",operator=""
  with SessionLocal() as db:
   x=M.KnowledgeItem(item_type=item_type,title=title.strip(),content=content.strip(),region=region.strip(),dataset=dataset.strip(),field=field.strip(),operator=operator.strip(),tags_json=json.dumps(tags or []),confidence=confidence,source=source,evidence_json=json.dumps(evidence or {})); db.add(x); db.commit(); db.refresh(x); return memory_dict(x)
 
+def delete_memory(item_id:int) -> bool:
+ with SessionLocal() as db:
+  x=db.get(M.KnowledgeItem,int(item_id))
+  if not x: return False
+  db.delete(x); db.commit(); return True
+
 def list_memories(limit=100,item_type="",region="",q=""):
  with SessionLocal() as db:
   stmt=select(M.KnowledgeItem).order_by(M.KnowledgeItem.updated_at.desc()).limit(max(1,min(int(limit),500)))
@@ -505,12 +511,15 @@ def list_memories(limit=100,item_type="",region="",q=""):
  return [memory_dict(x) for x in rows]
 
 def retrieve_memories(query,region="",field="",dataset="",limit=8):
- terms=set(_TOKEN.findall((query+" "+field+" "+dataset).lower())); candidates=list_memories(500,region=region); scored=[]
+ terms=_tokens(query,field,dataset); candidates=list_memories(500,region=region); scored=[]
  for x in candidates:
   text=(x["title"]+" "+x["content"]+" "+x["field"]+" "+x["dataset"]+" "+" ".join(x["tags"])).lower(); overlap=sum(1 for t in terms if t and t in text)
   if x["region"]==region and region:overlap+=2
   if field and x["field"]==field:overlap+=4
   if dataset and x["dataset"]==dataset:overlap+=4
+  # A genuinely general tip (no region/field/dataset scoping at all — "always applies") gets a
+  # small floor so it can still surface on modest topical overlap, not just heavy exact matches.
+  if not x["region"] and not x["field"] and not x["dataset"]:overlap+=1
   if overlap:scored.append((overlap,x))
  scored.sort(key=lambda z:(-z[0],-z[1]["updated_at"])); return [x for _,x in scored[:limit]]
 
@@ -528,8 +537,16 @@ def memory_prompt_context(query: str, region: str = "", fields: list | None = No
     for did in dataset_ids[:20]:
         for x in retrieve_memories(query, region=region, dataset=did, limit=limit):
             if x["id"] not in seen: seen.add(x["id"]); items.append(x)
-    if not items:
-        items = retrieve_memories(query, region=region, limit=limit)
+    # General (not field/dataset-tagged) memories always get a REAL chance — reserved slots, not
+    # just a fallback used when the scoped pool is completely empty. A universal tip ("always
+    # sanity-check turnover before finalizing") shouldn't get crowded out just because some
+    # field-scoped memory also happened to match something, however weakly.
+    general_slots = max(3, limit // 2)
+    added = 0
+    for x in retrieve_memories(query, region=region, limit=limit):
+        if x["id"] in seen: continue
+        seen.add(x["id"]); items.append(x); added += 1
+        if added >= general_slots: break
     if not items:
         return ""
     lines=["=== RELEVANT ACE KNOWLEDGE (advisory evidence; do not override hard rules) ==="]

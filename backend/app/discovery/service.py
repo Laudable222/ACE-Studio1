@@ -341,10 +341,13 @@ def _research_llm_generate(prompt: str, *, max_tokens: int = 12000):
     return _coerce_research_json(raw), getattr(provider, "name", ""), getattr(provider, "model", "")
 
 
-def extract_research(md: str, *, use_llm: bool=True) -> tuple[dict, str, str]:
+def extract_research(md: str, *, use_llm: bool=True, region: str = "") -> tuple[dict, str, str]:
     base = _heuristic_extract(md)
     if not use_llm:
         return base, "local", "heuristic"
+
+    from app.knowledge.service import memory_prompt_context
+    mem = memory_prompt_context(f"{base.get('title','')} {(md or '')[:2000]}", region=region, limit=8)
 
     try:
         # Send the original Markdown report to the research model. The deterministic
@@ -356,6 +359,8 @@ def extract_research(md: str, *, use_llm: bool=True) -> tuple[dict, str, str]:
         prompt = prompt.replace(
             "LINE-ADDRESSED REPORT:\n" + json.dumps(analysis_base.get("parser", {}), ensure_ascii=False)[:160000],
             "LINE-ADDRESSED REPORT:\n" + report_lines[:180000], 1)
+        if mem:
+            prompt = prompt + "\n\n" + mem
         obj, provider, model = _research_llm_generate(prompt, max_tokens=12000)
         analysis = _normalise_llm_research(obj, base)
 
@@ -366,6 +371,8 @@ def extract_research(md: str, *, use_llm: bool=True) -> tuple[dict, str, str]:
             enrichment_prompt = enrichment_prompt.replace(
                 "LINE-ADDRESSED REPORT:\n" + json.dumps(analysis.get("parser", {}), ensure_ascii=False)[:160000],
                 "LINE-ADDRESSED REPORT:\n" + report_lines[:180000], 1)
+            if mem:
+                enrichment_prompt = enrichment_prompt + "\n\n" + mem
             extra, _, _ = _research_llm_generate(enrichment_prompt, max_tokens=10000)
             analysis = _merge_research_maps(analysis, _normalise_llm_research(extra, base))
             analysis["analysis_note"] = "A second enrichment pass was used because the first extraction was sparse."
@@ -375,6 +382,8 @@ def extract_research(md: str, *, use_llm: bool=True) -> tuple[dict, str, str]:
             recovery_prompt = recovery_prompt.replace(
                 "LINE-ADDRESSED REPORT:\n" + json.dumps(analysis.get("parser", {}), ensure_ascii=False)[:160000],
                 "LINE-ADDRESSED REPORT:\n" + report_lines[:180000], 1)
+            if mem:
+                recovery_prompt = recovery_prompt + "\n\n" + mem
             recovered, _, _ = _research_llm_generate(recovery_prompt, max_tokens=10000)
             analysis = _merge_research_maps(analysis, _normalise_llm_research(recovered, base))
             analysis["analysis_note"] = "A focused hypothesis-recovery pass was required."

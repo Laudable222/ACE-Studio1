@@ -576,6 +576,10 @@ def suggest_templates(*, region, delay, instrument, universe, dataset_names, fie
         f"=== OPERATORS ===\n{op_summary}\n{op_examples}"
         f"=== DATAFIELDS (for context only — do NOT put these ids in a template) ===\n{_field_summary(fields, categories)}\n"
         "Return ONLY a JSON array of template strings using placeholders only.")
+    from app.knowledge.service import memory_prompt_context
+    mem = memory_prompt_context(f"{region} {universe} template design", region=region, fields=fields, datasets=dataset_names, limit=8)
+    if mem:
+        meta = meta + "\n\n" + mem
     progress(message="suggesting templates…")
     res = __import__("app.core.llm_router", fromlist=["TaskLLM"]).TaskLLM("alpha_generation").generate_list(meta, n=n)
     import re as _re

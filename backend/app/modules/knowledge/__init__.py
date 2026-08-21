@@ -82,3 +82,7 @@ def memory(req:MemoryReq):
     return service.add_memory(req.type,req.title or req.content[:80],req.content,req.region,req.dataset,req.field,req.operator,req.tags,req.confidence,req.source,req.evidence)
 @router.get("/memory/relevant")
 def relevant(q:str,region:str="",field:str="",dataset:str="",limit:int=8): return {"items":service.retrieve_memories(q,region,field,dataset,limit)}
+@router.delete("/memory/{item_id}")
+def delete_memory(item_id:int):
+    if not service.delete_memory(item_id): raise HTTPException(404,"memory not found")
+    return {"ok":True}

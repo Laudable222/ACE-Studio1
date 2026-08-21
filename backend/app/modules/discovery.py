@@ -61,7 +61,7 @@ def analyze(req:AnalyzeReq):
         from app.db.base import SessionLocal
         from app.db import models as M
         with SessionLocal() as db: row=db.get(M.ResearchDocument,req.document_id); content=row.content
-        extraction,provider,model=service.extract_research(content,use_llm=req.use_llm)
+        extraction,provider,model=service.extract_research(content,use_llm=req.use_llm,region=req.region)
         extraction['provenance']={'document_id':req.document_id,'provider':provider,'model':model}
         service.save_extraction(req.document_id,extraction)
         progress(message=f"{len(extraction.get('hypotheses',[]))} hypotheses extracted")
