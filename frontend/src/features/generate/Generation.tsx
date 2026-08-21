@@ -14,7 +14,10 @@ export function Generation() {
   const nav = useNavigate();
   const { toast, toastErr } = useToast();
   const [mode, setMode] = usePersistentState<"single" | "multi">("gen:mode", "single");
+  const [source, setSource] = usePersistentState<"fields" | "bulk">("gen:source", "fields");
   const [prompt, setPrompt] = usePersistentState("gen:prompt", "");
+  const [bulkText, setBulkText] = usePersistentState("gen:bulktext", "");
+  const [unmatched, setUnmatched] = usePersistentState<string[]>("gen:unmatched", []);
   const [maxOps, setMaxOps] = usePersistentState("gen:maxops", 4);
   const [n, setN] = usePersistentState("gen:n", 12);
   const [valid, setValid] = usePersistentState<string[]>("gen:valid", []);
@@ -22,6 +25,7 @@ export function Generation() {
   const [meta, setMeta] = usePersistentState<{ provider?: string; used?: string[]; fields?: string[] }>("gen:meta", {});
   const [seen, setSeen] = usePersistentState<string[]>("gen:seen", []);   // dedup across runs
   const [jobId, setJobId] = usePersistentState<string>("gen:job", "");
+  const [jobKind, setJobKind] = usePersistentState<"run" | "bulk">("gen:jobkind", "run");
   const [busy, setBusy] = useState(false);
   const [rewriteBusy, setRewriteBusy] = useState(false);
   const [libPrompts, setLibPrompts] = useState<{ id: number; name: string; body: string; datasets?: string[] }[]>([]);
@@ -29,9 +33,9 @@ export function Generation() {
 
   useEffect(() => { api.get<any>("/generate/prompts?scope=generate").then((d) => setLibPrompts(d.prompts || [])); }, []);
   // Reconnect a running generation job on return / reload.
-  useEffect(() => { if (jobId) { setBusy(true); poll(jobId); } /* eslint-disable-next-line */ }, []);
+  useEffect(() => { if (jobId) { setBusy(true); poll(jobId, jobKind); } /* eslint-disable-next-line */ }, []);
 
-  async function poll(id: string) {
+  async function poll(id: string, kind: "run" | "bulk" = "run") {
     let s: any = {};
     for (; ;) { s = await api.get(`/generate/jobs/${id}`); if (s.error && s.status === undefined) break; if (s.status !== "running") break; await new Promise((r) => setTimeout(r, 1400)); }
     setBusy(false); setJobId("");
@@ -43,8 +47,17 @@ export function Generation() {
     const dups = all.length - fresh.length;
     setValid(fresh); setRejected(r.rejected || []);
     setSeen([...new Set([...seen, ...all])].slice(-2000));
-    setMeta({ provider: r.provider, used: r.operators_used, fields: r.fields_used });
-    toast(`${fresh.length} new via ${r.provider}${dups ? ` · ${dups} duplicate(s) skipped` : ""} · ${r.operators_used?.length || 0} operators.`);
+    if (kind === "bulk") {
+      setUnmatched(r.unmatched || []);
+      setMeta({ fields: r.matched_field_ids });
+      toast(`${fresh.length} new (${r.single?.length || 0} single-field, ${r.multi?.length || 0} combination)`
+        + (dups ? ` · ${dups} duplicate(s) skipped` : "")
+        + (r.unmatched?.length ? ` · ${r.unmatched.length} pasted line(s) unmatched` : ""));
+    } else {
+      setUnmatched([]);
+      setMeta({ provider: r.provider, used: r.operators_used, fields: r.fields_used });
+      toast(`${fresh.length} new via ${r.provider}${dups ? ` · ${dups} duplicate(s) skipped` : ""} · ${r.operators_used?.length || 0} operators.`);
+    }
   }
 
   const selFields = R.fields.filter((f) => R.selFields.includes(f.id));
@@ -75,16 +88,27 @@ export function Generation() {
   }
 
   async function run() {
+    if (source === "bulk") {
+      if (!bulkText.trim()) return toast("Paste the datafield descriptions to build from — one per line.", "warn");
+      setBusy(true); setValid([]); setRejected([]); setUnmatched([]);
+      const start = await api.post<{ job_id: string; error?: string }>("/generate/bulk", {
+        text: bulkText, region: R.ctx.region, delay: R.ctx.delay, instrument: R.ctx.instrument,
+        universe: R.ctx.universe, max_operators: maxOps, n, rounds: 4,
+      });
+      if (start.error || !start.job_id) { setBusy(false); return toastErr(start.error || "Could not start."); }
+      setJobId(start.job_id); setJobKind("bulk"); poll(start.job_id, "bulk");
+      return;
+    }
     if (!selFields.length && !prompt.trim()) return toast("Select datafields, or describe the idea you want tested so the LLM can pick the data itself.", "warn");
     if (missingDs.length) return toast(`Fetch the required dataset(s) first: ${missingDs.join(", ")}.`, "warn");
-    setBusy(true); setValid([]); setRejected([]);
+    setBusy(true); setValid([]); setRejected([]); setUnmatched([]);
     const start = await api.post<{ job_id: string; error?: string }>("/generate/run", {
       mode, prompt, region: R.ctx.region, delay: R.ctx.delay, instrument: R.ctx.instrument,
       universe: R.ctx.universe, dataset_names: dsNames, fields: fieldPayload(),
       categories: fieldCategory, max_operators: maxOps, n,
     });
     if (start.error || !start.job_id) { setBusy(false); return toastErr(start.error || "Could not start."); }
-    setJobId(start.job_id); poll(start.job_id);
+    setJobId(start.job_id); setJobKind("run"); poll(start.job_id, "run");
   }
 
   return (
@@ -95,33 +119,50 @@ export function Generation() {
           <span className="mut">{selFields.length} field(s) · {nCats} categor{nCats === 1 ? "y" : "ies"} · {R.ctx.region} D{R.ctx.delay}</span></div>
 
         <div className="dx-filters" style={{ marginBottom: 8 }}>
-          <span className={"pill" + (mode === "single" ? " on" : "")} onClick={() => setMode("single")}>Single Field (Deep Extraction)</span>
-          <span className={"pill" + (mode === "multi" ? " on" : "")} onClick={() => setMode("multi")}>Multi Field (≤2 Categories)</span>
+          <span className={"pill" + (source === "fields" ? " on" : "")} onClick={() => setSource("fields")}>Selected Fields / Idea</span>
+          <span className={"pill" + (source === "bulk" ? " on" : "")} onClick={() => setSource("bulk")}>Paste Datafield Descriptions</span>
         </div>
-        {mode === "multi" && nCats > 2 &&
-          <div className="mut" style={{ fontSize: 12, color: "var(--warn)", marginBottom: 8 }}>
-            {nCats} categories selected — expressions will be restricted to at most 2 per expression.</div>}
 
-        <label className="fld"><span>Instruction (Optional — Research Lab Pushes Land Here)</span>
-          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} style={{ minHeight: 90 }}
-            placeholder={selFields.length ? "Describe the economic ideas to explore, or leave blank for grounded auto-generation." : "No fields selected — describe the idea here and the LLM will pick the catalogued data itself."} /></label>
+        {source === "fields" ? <>
+          <div className="dx-filters" style={{ marginBottom: 8 }}>
+            <span className={"pill" + (mode === "single" ? " on" : "")} onClick={() => setMode("single")}>Single Field (Deep Extraction)</span>
+            <span className={"pill" + (mode === "multi" ? " on" : "")} onClick={() => setMode("multi")}>Multi Field (≤2 Categories)</span>
+          </div>
+          {mode === "multi" && nCats > 2 &&
+            <div className="mut" style={{ fontSize: 12, color: "var(--warn)", marginBottom: 8 }}>
+              {nCats} categories selected — expressions will be restricted to at most 2 per expression.</div>}
 
-        {libPrompts.length > 0 &&
-          <div className="dx-filters wrap" style={{ marginTop: 8 }}>
-            <span className="mut" style={{ fontSize: 11 }}>From Library:</span>
-            {libPrompts.slice(0, 8).map((p) => <span key={p.id} className="pill" title={p.name}
-              onClick={() => { setPrompt(p.body); setReqDatasets(p.datasets || []); toast(`Loaded “${p.name}” (#${p.id}).`); }}>
-              {p.name.length > 22 ? p.name.slice(0, 22) + "…" : p.name} <span className="mut">#{p.id}</span></span>)}
-          </div>}
-        {missingDs.length ? <div className="mut" style={{ fontSize: 12, color: "var(--warn)", marginTop: 8 }}>
-          ⚠ This strategy needs data you haven't fetched: <b>{missingDs.join(", ")}</b>. Fetch it in the Data Explorer and select its fields before generating.
-        </div> : null}
+          <label className="fld"><span>Instruction (Optional — Research Lab Pushes Land Here)</span>
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} style={{ minHeight: 90 }}
+              placeholder={selFields.length ? "Describe the economic ideas to explore, or leave blank for grounded auto-generation." : "No fields selected — describe the idea here and the LLM will pick the catalogued data itself."} /></label>
 
-        <div className="dx-filters" style={{ marginTop: 8 }}>
-          <button className="btn ghost sm" onClick={autoRewrite} disabled={rewriteBusy || busy}>
-            {rewriteBusy ? <><span className="spin" /> Rewriting…</> : "✦ Auto-Rewrite Instruction"}</button>
-          <span className="mut" style={{ fontSize: 11 }}>datasets & operators are added automatically</span>
-        </div>
+          {libPrompts.length > 0 &&
+            <div className="dx-filters wrap" style={{ marginTop: 8 }}>
+              <span className="mut" style={{ fontSize: 11 }}>From Library:</span>
+              {libPrompts.slice(0, 8).map((p) => <span key={p.id} className="pill" title={p.name}
+                onClick={() => { setPrompt(p.body); setReqDatasets(p.datasets || []); toast(`Loaded “${p.name}” (#${p.id}).`); }}>
+                {p.name.length > 22 ? p.name.slice(0, 22) + "…" : p.name} <span className="mut">#{p.id}</span></span>)}
+            </div>}
+          {missingDs.length ? <div className="mut" style={{ fontSize: 12, color: "var(--warn)", marginTop: 8 }}>
+            ⚠ This strategy needs data you haven't fetched: <b>{missingDs.join(", ")}</b>. Fetch it in the Data Explorer and select its fields before generating.
+          </div> : null}
+
+          <div className="dx-filters" style={{ marginTop: 8 }}>
+            <button className="btn ghost sm" onClick={autoRewrite} disabled={rewriteBusy || busy}>
+              {rewriteBusy ? <><span className="spin" /> Rewriting…</> : "✦ Auto-Rewrite Instruction"}</button>
+            <span className="mut" style={{ fontSize: 11 }}>datasets & operators are added automatically</span>
+          </div>
+        </> : <>
+          <label className="fld"><span>Datafield Descriptions — One Per Line</span>
+            <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} style={{ minHeight: 180 }}
+              placeholder={"close\nfnd28_newqtr: quarterly earnings surprise magnitude\nvolume traded over the last 20 days\n…paste as many as you have, one per line"} /></label>
+          <div className="mut" style={{ fontSize: 11, marginTop: 6 }}>
+            Matched against the local catalogue for {R.ctx.region} D{R.ctx.delay} {R.ctx.universe} — a bare field id matches most reliably;
+            an id with a description, or just a description, also works. Generates single-field alphas for every match individually,
+            AND ≤2-category combinations across them — as many distinct, valid expressions as the catalogue supports.</div>
+          {unmatched.length > 0 && <div className="mut" style={{ fontSize: 11, marginTop: 6, color: "var(--warn)" }}>
+            ⚠ {unmatched.length} pasted line(s) didn't match anything: {unmatched.slice(0, 5).join(" · ")}{unmatched.length > 5 ? "…" : ""}</div>}
+        </>}
 
         <div style={{ display: "flex", gap: 8, alignItems: "end", marginTop: 10 }}>
           <label className="fld" style={{ width: 84 }}><span>Max Ops</span>
@@ -145,10 +186,10 @@ export function Generation() {
         </div>
         {(meta.used?.length || meta.fields?.length) ? (
           <div className="dx-filters wrap" style={{ marginBottom: 6, fontSize: 11 }}>
-            <span className="badge" style={{ background: "var(--acc-weak)", color: "var(--acc)" }}>{meta.used?.length || 0} operators</span>
+            {meta.used ? <span className="badge" style={{ background: "var(--acc-weak)", color: "var(--acc)" }}>{meta.used.length} operators</span> : null}
             <span className="badge" style={{ background: "var(--acc-weak)", color: "var(--acc)" }}>{meta.fields?.length || 0} fields</span>
             <span className="badge" style={{ background: "var(--faint)", color: "var(--mut)" }}>{seen.length} seen total</span>
-            <span className="mut" title={meta.used?.join(", ")}>{(meta.used || []).slice(0, 10).join(", ")}{(meta.used?.length || 0) > 10 ? "…" : ""}</span>
+            {meta.used ? <span className="mut" title={meta.used.join(", ")}>{meta.used.slice(0, 10).join(", ")}{meta.used.length > 10 ? "…" : ""}</span> : null}
           </div>
         ) : null}
         <div className="panel-scroll">

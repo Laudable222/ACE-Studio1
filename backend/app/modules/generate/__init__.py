@@ -60,6 +60,72 @@ def run(req: GenReq):
     return {"job_id": jobs.submit("generate", task)}
 
 
+class BulkFieldGenReq(BaseModel):
+    text: str = ""                        # pasted datafield descriptions, one per line
+    region: str = "USA"
+    delay: int = 1
+    instrument: str = "EQUITY"
+    universe: str = "TOP3000"
+    max_operators: int = 4
+    n: int = 12
+    rounds: int = 4                       # per mode — see /run's experiment-generation sibling for the same pattern
+
+
+@router.post("/bulk")
+def bulk(req: BulkFieldGenReq):
+    if not req.text.strip():
+        raise HTTPException(400, "Paste the datafield descriptions to build alphas from — one per line.")
+
+    def task(progress, should_cancel):
+        from app.knowledge import service as knowledge_service
+        from llm_providers import _canonical
+
+        progress(message="matching pasted lines against the local catalogue…")
+        fields, categories, dataset_names, unmatched = knowledge_service.resolve_fields_from_text(
+            req.text, region=req.region, delay=req.delay, instrument=req.instrument, universe=req.universe)
+        if not fields:
+            raise RuntimeError(
+                f"None of the pasted lines matched fields catalogued for {req.region} D{req.delay} {req.universe}. "
+                "Fetch datasets for this region/delay in Data Explorer first (it catalogues fields too), or check "
+                "the pasted text — a bare field id per line matches most reliably.")
+        progress(message=f"matched {len(fields)} field(s) across {len(dataset_names)} dataset(s)"
+                        + (f" — {len(unmatched)} line(s) didn't match anything" if unmatched else ""))
+
+        # Individually AND in combination: one pass in 'single' mode (deep per-field extraction,
+        # naturally spread across every matched field per the generation prompt's own coverage
+        # rule) and one pass in 'multi' mode (≤2-category combinations, same rule enforced).
+        # Each pass runs the same multi-round accumulation as experiment generation — keep only
+        # genuinely new distinct expressions per round, stop the moment a round adds nothing new.
+        by_mode: dict[str, list[str]] = {"single": [], "multi": []}
+        seen = set()
+        for mode in ("single", "multi"):
+            if should_cancel(): break
+            rounds = max(1, min(6, req.rounds))
+            for i in range(rounds):
+                if should_cancel(): break
+                progress(message=f"{mode}-field generation — round {i + 1}/{rounds}…")
+                out = service.run_generation(
+                    mode=mode, prompt="", region=req.region, delay=req.delay, instrument=req.instrument,
+                    universe=req.universe, dataset_names=dataset_names, fields=fields, categories=categories,
+                    max_operators=req.max_operators, n=req.n, repair_rounds=2, region_note="",
+                    progress=progress, raw_prompt=False)
+                round_new = [e for e in out.get("valid", []) if _canonical(e) not in seen]
+                for e in round_new: seen.add(_canonical(e))
+                by_mode[mode] += round_new
+                if i > 0 and not round_new: break
+
+        valid = by_mode["single"] + by_mode["multi"]
+        from app.discovery import service as dsvc
+        for e in valid:
+            try: dsvc.save_dna(dsvc.alpha_dna(e, req.region, categories))
+            except Exception: pass
+        progress(message=f"done: {len(by_mode['single'])} single-field + {len(by_mode['multi'])} combination candidate(s)")
+        return {"valid": valid, "single": by_mode["single"], "multi": by_mode["multi"],
+                "matched_field_ids": [f["id"] for f in fields], "dataset_names": dataset_names, "unmatched": unmatched}
+
+    return {"job_id": jobs.submit("bulk-field-generation", task)}
+
+
 @router.post("/rewrite")
 def rewrite(req: GenReq):
     """Auto-rewrite the current instruction into a long, self-contained MASTER prompt that

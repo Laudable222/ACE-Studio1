@@ -577,3 +577,60 @@ def auto_select_fields(query: str, region: str, delay: int, instrument: str = ""
     used_ds_ids = {f.get("dataset_id") for f in fields}
     dataset_names = [d.get("name") or d["id"] for d in chosen if d["id"] in used_ds_ids]
     return fields, categories, dataset_names
+
+
+def resolve_fields_from_text(text: str, region: str, delay: int, instrument: str = "", universe: str = ""):
+    """Resolve a block of pasted datafield descriptions back to catalogued fields — one
+    reference per line: a bare field id, an "id: description" or "id | description | type"
+    row, or a line of free prose describing the field. Local catalogue only, never BRAIN.
+
+    Each line is matched two ways, in priority order: (1) an exact field-id token in the line
+    (split on common punctuation) — the reliable case, e.g. a literal id was pasted in; (2) a
+    fallback fuzzy match, scoring the line's own text against every catalogued field's
+    description/name/type the same way auto_select_fields scores a whole idea, keeping only
+    the best match and only above a floor (avoids matching a vague short line to something
+    unrelated just because it happened to score highest of a bad field).
+
+    Returns (fields, categories, dataset_names, unmatched_lines) — unmatched_lines lets the
+    caller show the user exactly which pasted lines didn't resolve to anything, rather than
+    silently dropping them.
+    """
+    from app.research.service import _catalogue_score
+
+    lines = [ln.strip() for ln in (text or "").splitlines()]
+    lines = [ln for ln in lines if len(ln) > 1]
+    if not lines:
+        return [], {}, [], []
+
+    datasets = catalogue_datasets(region, delay, instrument, universe)
+    if not datasets:
+        return [], {}, [], lines
+    all_fields = catalogue_fields([d["id"] for d in datasets], region, delay)
+    if not all_fields:
+        return [], {}, [], lines
+    by_id_lower = {f["id"].lower(): f for f in all_fields}
+    category_by_dataset = {d["id"]: d.get("category", "") for d in datasets}
+
+    matched: dict = {}
+    unmatched: list = []
+    for ln in lines:
+        tokens = [t for t in re.split(r"[\s,;:|/\\()\[\]{}\"'=]+", ln) if t]
+        hit = next((by_id_lower[t.lower()] for t in tokens if t.lower() in by_id_lower), None)
+        if not hit:
+            best, best_score = None, 0.0
+            for f in all_fields:
+                sc = _catalogue_score(ln, f)
+                if sc > best_score:
+                    best, best_score = f, sc
+            if best is not None and best_score >= 0.35:
+                hit = best
+        if hit is not None:
+            matched[hit["id"]] = hit
+        else:
+            unmatched.append(ln)
+
+    fields = list(matched.values())
+    categories = {f["id"]: category_by_dataset.get(f.get("dataset_id"), "") for f in fields}
+    used_ds_ids = {f.get("dataset_id") for f in fields}
+    dataset_names = [d.get("name") or d["id"] for d in datasets if d["id"] in used_ds_ids]
+    return fields, categories, dataset_names, unmatched
