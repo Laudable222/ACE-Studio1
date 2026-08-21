@@ -31,7 +31,23 @@ export function AlphaEvolution(){
       <div className="panel" style={{padding:12,overflow:"auto"}}><div className="dx-head"><b>Families</b><button className="btn ghost sm" style={{marginLeft:"auto"}} onClick={load}>↻</button></div>{!families.length?<div className="empty">No evolution families yet.</div>:families.map(f=><div key={f.id} onClick={()=>setSelected(f)} style={{padding:10,marginTop:7,border:"1px solid var(--border)",borderRadius:8,cursor:"pointer",background:selected?.id===f.id?"var(--surface-2)":"transparent"}}><b>#{f.id} {f.name}</b><div className="mut" style={{fontSize:11}}>{f.parent_alpha_id} · gen {f.generation} · {f.variants_created} variants</div><div style={{fontSize:11,marginTop:3}}>{f.variants_passed} passed · {f.variants_failed} failed · {f.status}</div></div>)}</div>
       <div className="panel" style={{padding:14,overflow:"auto"}}>{!selected?<div className="empty">Select an alpha family to inspect its lineage.</div>:<><div className="dx-head"><b>Family #{selected.id}</b><span className="mut">{selected.name}</span><span style={{marginLeft:"auto",display:"flex",gap:6}}>{selected.status==="open"&&<button className="btn sm" onClick={evolve} disabled={busy}>＋ Propose next variants</button>}<button className="btn ghost sm" onClick={close} disabled={busy||selected.status!=="open"}>Close branch</button></span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,margin:"10px 0"}}>{[["Status",selected.status],["Parent",selected.parent_alpha_id],["Generation",selected.generation],["Budget",selected.variant_budget],["Variants",selected.variants_created]].map(([k,v])=><div key={String(k)} style={{padding:9,background:"var(--surface-2)",borderRadius:7}}><div className="mut" style={{fontSize:10}}>{k}</div><b>{v}</b></div>)}</div>
-        <table><thead><tr><th>Gen</th><th>Type</th><th>Expression / settings</th><th>Why</th><th>Result</th><th>Actions</th></tr></thead><tbody>{selected.variants.map(v=><tr key={v.id}><td>{v.generation}</td><td><span className="badge">{v.mutation_type}</span><div className="mut" style={{fontSize:10}}>{v.label}</div></td><td><code>{v.expression}</code>{Object.keys(v.settings||{}).length>0&&<div className="mut" style={{fontSize:10}}>{JSON.stringify(v.settings)}</div>}</td><td style={{maxWidth:300,fontSize:11}}>{v.reason}</td><td>{v.status}{v.fitness!=null&&<div className="mut" style={{fontSize:10}}>Fit {Math.abs(v.fitness).toFixed(3)} · Sh {v.sharpe==null?"—":Math.abs(v.sharpe).toFixed(3)}</div>}</td><td style={{whiteSpace:"nowrap"}}>{["proposed","failed"].includes(v.status)&&<button className="btn sm" onClick={()=>simulateVariant(v.id)} disabled={busy}>Simulate</button>}{["proposed","failed"].includes(v.status)&&<button className="btn ghost sm" onClick={()=>abandon(v.id)} style={{marginLeft:5}}>Abandon</button>}</td></tr>)}</tbody></table></>}</div>
+        <table><thead><tr><th>Gen</th><th>Type</th><th>Expression / settings</th><th>Why</th><th>Result</th><th>Actions</th></tr></thead><tbody>{selected.variants.map(v=>{
+          const parent=selected.variants.find(x=>x.id===v.parent_variant_id);
+          const fitDelta=v.fitness!=null&&parent?.fitness!=null?Math.abs(v.fitness)-Math.abs(parent.fitness):null;
+          const passed=v.status==="passed";
+          return <tr key={v.id} style={passed?{background:"var(--ok-weak)"}:undefined}>
+            <td>{v.generation}</td>
+            <td><span className="badge">{v.mutation_type}</span><div className="mut" style={{fontSize:10}}>{v.label}</div></td>
+            <td><code>{v.expression}</code>{Object.keys(v.settings||{}).length>0&&<div className="mut" style={{fontSize:10}}>{JSON.stringify(v.settings)}</div>}</td>
+            <td style={{maxWidth:300,fontSize:11}}>{v.reason}</td>
+            <td>{passed?<b style={{color:"var(--ok)"}}>✓ passed</b>:v.status}
+              {v.fitness!=null&&<div className="mut" style={{fontSize:10}}>Fit {Math.abs(v.fitness).toFixed(3)} · Sh {v.sharpe==null?"—":Math.abs(v.sharpe).toFixed(3)}
+                {fitDelta!=null&&<span style={{color:fitDelta>0?"var(--ok)":fitDelta<0?"var(--bad)":undefined,marginLeft:4}}>({fitDelta>=0?"+":""}{fitDelta.toFixed(3)} vs parent)</span>}</div>}</td>
+            <td style={{whiteSpace:"nowrap"}}>
+              {["proposed","failed"].includes(v.status)&&<button className="btn sm" onClick={()=>simulateVariant(v.id)} disabled={busy}>Simulate</button>}
+              {["proposed","failed"].includes(v.status)&&<button className="btn ghost sm" onClick={()=>abandon(v.id)} style={{marginLeft:5}}>Abandon</button>}
+              {passed&&v.alpha_id&&<a className="btn sm" href={`https://platform.worldquantbrain.com/alpha/${v.alpha_id}`} target="_blank" rel="noopener">Ready — Open In BRAIN To Submit →</a>}</td>
+          </tr>;})}</tbody></table></>}</div>
     </div>
   </div>
 }

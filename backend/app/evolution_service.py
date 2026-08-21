@@ -189,6 +189,7 @@ def create_family(alpha_id: str, name: str = "", hypothesis: dict | None = None,
 
 
 def evolve(family_id: int, max_variants: int = 10):
+    from app.discovery.service import canonical
     with SessionLocal() as db:
         f=db.get(M.AlphaFamily,int(family_id))
         if not f: raise ValueError("alpha family not found")
@@ -197,24 +198,39 @@ def evolve(family_id: int, max_variants: int = 10):
         created=sum(1 for v in variants if v.mutation_type != "parent")
         if created >= f.variant_budget: raise ValueError("family variant budget exhausted")
         if f.generation >= MAX_GENERATIONS: raise ValueError("family generation limit reached")
-        # Only empirically tested FAILED variants may generate further mutations. The lineage root
-        # is itself a failed, tested simulation, so it is eligible for generation 1. Untested proposed
-        # variants are never used as parents. A passed variant closes the search branch rather than
-        # becoming an evidence-free mutation source.
-        parent=next((v for v in variants if v.status=="failed" and v.sim_result_id),None)
+
+        # Every expression already tried anywhere in this family, canonicalised — the mutation
+        # catalogue is deterministic given (expr, diagnosis, settings), so re-selecting a parent
+        # that's already been diagnosed would otherwise just re-propose identical duplicates.
+        tried={canonical(v.expression) for v in variants}
+
+        # Learning from results means building the next round on whichever tested attempt
+        # genuinely came CLOSEST to passing so far (|fitness|, falling back to |sharpe|) — not
+        # on whichever was created most recently. A generation that regresses shouldn't drag the
+        # search backwards with it; walk candidates best-first and use the first one that still
+        # has an untried mutation left.
+        candidates=[v for v in variants if v.status=="failed" and v.sim_result_id]
+        def _score(v):
+            if v.fitness is not None: return abs(v.fitness)
+            if v.sharpe is not None: return abs(v.sharpe)*0.5
+            return -1.0
+        candidates.sort(key=_score, reverse=True)
+
+        parent=None; props=[]
+        for cand in candidates:
+            ps=db.get(M.SimResult,int(cand.sim_result_id)) if cand.sim_result_id else None
+            if ps and cand.execution_key and ps.execution_key != cand.execution_key: ps=None
+            if not ps: continue
+            d=diagnose_sim_result(ps)
+            cand_props=[p for p in _mutations(cand.expression,d["diagnosis"],_json(cand.settings_json,{})) if canonical(p["expression"]) not in tried]
+            if cand_props:
+                parent, props = cand, cand_props
+                break
         if parent is None:
-            raise ValueError("No tested failed variant is available to evolve. Simulate a proposed variant first.")
-        expr=parent.expression
-        ps = db.get(M.SimResult, int(parent.sim_result_id)) if parent.sim_result_id else None
-        if ps and parent.execution_key and ps.execution_key != parent.execution_key:
-            ps = None
-        if not ps:
-            raise ValueError("Parent variant has no exact simulation result; it cannot be evolved.")
-        d = diagnose_sim_result(ps)
-        diag=d["diagnosis"]
-        props=_mutations(expr,diag,_json(parent.settings_json,{}))
+            raise ValueError("No tested failed variant has an untried mutation left — every controlled "
+                             "change in the catalogue has already been tried for this family's best attempts.")
+
         room=min(max(1,int(max_variants)), f.variant_budget-created)
-        # Don't exceed the next generation boundary.
         props=props[:room]
         for p in props:
             v=M.AlphaVariant(family_id=f.id,parent_variant_id=parent.id,parent_alpha_id=parent.parent_alpha_id,
