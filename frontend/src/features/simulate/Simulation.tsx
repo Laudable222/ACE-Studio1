@@ -269,12 +269,12 @@ export function Simulation() {
           <span key={nu} className={"pill" + (neuts.includes(nu) ? " on" : "")} onClick={() => toggle(neuts, nu, setNeuts)}>{nu}</span>)}</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginTop: 8 }}>
-          <label className="fld"><span>Decay</span><NumberInput min={0} fallback={4} value={decay} onChange={setDecay} /></label>
-          <label className="fld"><span>Truncation</span><NumberInput step="0.01" min={0} fallback={0.08} value={trunc} onChange={setTrunc} /></label>
-          <label className="fld"><span>Concurrency (1–8)</span><NumberInput min={1} max={8} fallback={3} value={conc} onChange={setConc} /></label>
-          <label className="fld"><span>Multi-batch (2–10)</span><NumberInput min={2} max={10} fallback={10} value={multi} onChange={setMulti} /></label>
-          <label className="fld"><span>|Sharpe| ≥ {R.ctx.delay === 0 ? "(D0)" : ""}</span><NumberInput step="0.01" min={0} fallback={0} value={gate.sharpe} onChange={(v) => setGate({ ...gate, sharpe: v })} /></label>
-          <label className="fld"><span>|Fitness| ≥</span><NumberInput step="0.1" min={0} fallback={0} value={gate.fitness} onChange={(v) => setGate({ ...gate, fitness: v })} /></label>
+          <label className="fld" title="Exponential decay applied to the alpha's signal over time, in days — higher smooths the signal more and tends to reduce turnover."><span>Decay</span><NumberInput min={0} fallback={4} value={decay} onChange={setDecay} /></label>
+          <label className="fld" title="Caps each position's weight as a fraction of the portfolio, so no single instrument can dominate."><span>Truncation</span><NumberInput step="0.01" min={0} fallback={0.08} value={trunc} onChange={setTrunc} /></label>
+          <label className="fld" title="How many batches BRAIN works on at once for this run — higher finishes faster but uses more of your concurrency budget."><span>Concurrency (1–8)</span><NumberInput min={1} max={8} fallback={3} value={conc} onChange={setConc} /></label>
+          <label className="fld" title="How many alphas BRAIN simulates together in one batch — 2 to 10 is BRAIN's own platform limit, not an app restriction."><span>Multi-batch (2–10)</span><NumberInput min={2} max={10} fallback={10} value={multi} onChange={setMulti} /></label>
+          <label className="fld" title="Minimum absolute Sharpe ratio required to pass the gate. Leave at 0 to use the built-in threshold for this delay (2.69 at delay 0, else 1.58)."><span>|Sharpe| ≥ {R.ctx.delay === 0 ? "(D0)" : ""}</span><NumberInput step="0.01" min={0} fallback={0} value={gate.sharpe} onChange={(v) => setGate({ ...gate, sharpe: v })} /></label>
+          <label className="fld" title="Minimum absolute Fitness score required to pass the gate. Leave at 0 to use the built-in threshold for this delay (1.5 at delay 0, else 1.0)."><span>|Fitness| ≥</span><NumberInput step="0.1" min={0} fallback={0} value={gate.fitness} onChange={(v) => setGate({ ...gate, fitness: v })} /></label>
         </div>
 
         <div className="section" style={{ fontSize: 11, color: "var(--mut)", textTransform: "uppercase", letterSpacing: ".5px", marginTop: 10 }}>Engine Settings</div>
@@ -290,9 +290,9 @@ export function Simulation() {
 
         <div className="section" style={{ fontSize: 11, color: "var(--mut)", textTransform: "uppercase", letterSpacing: ".5px", marginTop: 10 }}>Tags (Your Own) & Checks</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8 }}>
-          <label className="fld"><span>Tag Every Alpha</span><input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. my_news" /></label>
-          <label className="fld"><span>Winner Tag</span><input value={winnerTag} onChange={(e) => setWinnerTag(e.target.value)} placeholder="e.g. my_winner" /></label>
-          <label className="fld"><span>Winner |fit| ≥</span><NumberInput step="0.1" min={0} fallback={2} value={winAbove} onChange={setWinAbove} style={{ width: 80 }} /></label>
+          <label className="fld" title="Applied to every alpha simulated in this batch, pass or fail. Your own tag — never sent anywhere else."><span>Tag Every Alpha</span><input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. my_news" /></label>
+          <label className="fld" title="Applied only to alphas whose |fitness| clears the threshold on the right."><span>Winner Tag</span><input value={winnerTag} onChange={(e) => setWinnerTag(e.target.value)} placeholder="e.g. my_winner" /></label>
+          <label className="fld" title="The |fitness| threshold that triggers the Winner Tag."><span>Winner |fit| ≥</span><NumberInput step="0.1" min={0} fallback={2} value={winAbove} onChange={setWinAbove} style={{ width: 80 }} /></label>
         </div>
         <div className="dx-filters" style={{ marginTop: 8 }}>
           <span className={"pill" + (checkSub ? " on" : "")} onClick={() => setCheckSub((v) => !v)}

@@ -36,7 +36,7 @@
 
   /* the shell geometry (drives the no-scroll layout) */
   --sidebar-w:  228px;
-  --header-h:   52px;
+  --header-h:   60px;
 
   /* user-adjustable scale, set by the auto-scale hook */
   --ui-scale:   1;

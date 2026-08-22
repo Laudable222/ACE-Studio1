@@ -112,7 +112,12 @@
   display: flex; align-items: center; gap: 10px; padding: 0 18px;
   background: linear-gradient(180deg, var(--bg-2), transparent);
 }
-.header .title { font-weight: 600; font-size: 14px; }
+.header .title { font-weight: 600; font-size: 14px; line-height: 1.25; }
+.header-titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.header .subtitle {
+  font-size: 11px; color: var(--mut); line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 56vw;
+}
 .header .spacer { flex: 1; }
 .ctx-chip {
   display: inline-flex; align-items: center; gap: 6px;

@@ -125,8 +125,8 @@ export function Generation() {
 
         {source === "fields" ? <>
           <div className="dx-filters" style={{ marginBottom: 8 }}>
-            <span className={"pill" + (mode === "single" ? " on" : "")} onClick={() => setMode("single")}>Single Field (Deep Extraction)</span>
-            <span className={"pill" + (mode === "multi" ? " on" : "")} onClick={() => setMode("multi")}>Multi Field (≤2 Categories)</span>
+            <span className={"pill" + (mode === "single" ? " on" : "")} onClick={() => setMode("single")} title="One field per expression, extracted every reasonable way — the deepest coverage of a single concept.">Single Field (Deep Extraction)</span>
+            <span className={"pill" + (mode === "multi" ? " on" : "")} onClick={() => setMode("multi")} title="Combines fields from up to 2 data categories per expression — more than that is rejected outright, not just discouraged.">Multi Field (≤2 Categories)</span>
           </div>
           {mode === "multi" && nCats > 2 &&
             <div className="mut" style={{ fontSize: 12, color: "var(--warn)", marginBottom: 8 }}>
@@ -165,9 +165,9 @@ export function Generation() {
         </>}
 
         <div style={{ display: "flex", gap: 8, alignItems: "end", marginTop: 10 }}>
-          <label className="fld" style={{ width: 84 }}><span>Max Ops</span>
+          <label className="fld" style={{ width: 84 }} title="Maximum number of operators BRAIN allows to be chained in one generated expression."><span>Max Ops</span>
             <NumberInput min={1} max={12} fallback={4} value={maxOps} onChange={setMaxOps} /></label>
-          <label className="fld" style={{ width: 84 }}><span>Count</span>
+          <label className="fld" style={{ width: 84 }} title="How many candidate expressions the LLM is asked for in one call — actual valid output is usually somewhat fewer after validation."><span>Count</span>
             <NumberInput min={1} fallback={12} value={n} onChange={setN} /></label>
           <button className="btn" onClick={run} disabled={busy} style={{ flex: 1 }}>
             {busy ? <><span className="spin" /> generating…</> : "✦ Generate"}</button>

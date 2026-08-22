@@ -4,6 +4,7 @@ export interface NavItem {
   label: string;
   icon: string;
   ready: boolean;
+  description?: string;
 }
 export interface NavGroup {
   group: string;

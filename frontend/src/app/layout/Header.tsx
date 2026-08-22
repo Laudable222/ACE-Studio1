@@ -7,11 +7,15 @@ export function Header({ nav, onSearch }: { nav: NavGroup[]; onSearch: () => voi
   const { pathname } = useLocation();
   const { ctx } = useResearch();
   const { theme, setTheme } = useTheme();
-  const current = nav.flatMap((g) => g.items).find((it) => it.path === pathname)?.label ?? "ACE Studio";
+  const item = nav.flatMap((g) => g.items).find((it) => it.path === pathname);
+  const current = item?.label ?? "ACE Studio";
 
   return (
     <header className="header">
-      <span className="title">{current}</span>
+      <div className="header-titles">
+        <span className="title">{current}</span>
+        {item?.description ? <span className="subtitle">{item.description}</span> : null}
+      </div>
       <div className="spacer" />
       {/* Live research context (edit it on the Data Explorer). */}
       <span className="ctx-chip">{ctx.region} · {ctx.universe} · <b>D{ctx.delay}</b> · {ctx.instrument}</span>
